@@ -1,0 +1,109 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Workspace layout
+
+`c:\Repos\CAG` is a container folder, **not** a git repo. It holds three independent pieces:
+
+| Folder | What it is | Git |
+|---|---|---|
+| `CAG.Admin.API/` | .NET 9 Web API (Clean Architecture, MySQL + Dapper) | own repo, branch `main` |
+| `CAG.Admin.UI/` | Next.js 15 App Router admin portal (React 19, TypeScript) | own repo, branch `main` |
+| `CAG.Admin.DB/` | MySQL schema **dumps and reference CSVs** — no migration tooling | untracked |
+
+Commit separately inside `CAG.Admin.API/` and `CAG.Admin.UI/`; there is no root-level git.
+
+`CAG.Admin.API/CLAUDE.md` holds API-only guidance and is still accurate except that concrete controllers do **not** use the versioned route (see "Routing" below).
+
+## Commands
+
+API (run from `CAG.Admin.API/`):
+
+```bash
+dotnet restore CAG.Admin.API/CAG.Admin.API.sln
+dotnet build   CAG.Admin.API/CAG.Admin.API.sln
+dotnet run --project CAG.Admin.API/CAG.Admin.API.csproj                          # https://localhost:7130, http://localhost:5016
+dotnet run --project CAG.Admin.API/CAG.Admin.API.csproj --environment Development
+```
+
+Scalar API docs at `/scalar/v1`, OpenAPI JSON at `/openapi/v1.json`.
+
+UI (run from `CAG.Admin.UI/`):
+
+```bash
+npm run dev     # next dev --experimental-https --turbopack → https://localhost:3000 (certs in certificates/)
+npm run build
+npm run start
+npm run lint    # eslint, next/core-web-vitals + next/typescript
+npx tsc --noEmit
+```
+
+**There are no tests in either repo.** `CAG.Admin.API.UnitTests/` contains only a stale `obj/` folder — the csproj is gone and the project is not in the solution, so `dotnet test` does nothing. `CAG.Admin.UI/UI_TEST_FLOWS.md` is a hand-written manual QA script, not automated tests. If asked to "run the tests", say so rather than inventing a command. There is also no CI: `CAG.Admin.API/.github/workflows/` is empty and there are no compose files. Both repos ship a standalone `Dockerfile` (API → `mcr.microsoft.com/dotnet/aspnet:9.0-alpine`, port 8080; UI → `node:22-alpine`, port 3000, copying `.env.qa`/`.env.prod` to `.env.production` based on `APP_ENV`).
+
+## The API ↔ UI contract
+
+This is the part that requires reading both repos to understand.
+
+**Auth is a two-hop JWT.** UI NextAuth (`Credentials` provider, `src/app/api/auth/[...nextauth]/auth.ts`) posts to the API's `POST /api/Auth/Login`. The API returns its own signed JWT. NextAuth then **verifies that token locally with `process.env.JWT_SECRET`** and copies its claims into the NextAuth session. So **UI `JWT_SECRET` must be byte-identical to API `AppSettings:Token`** — if login starts failing with a signature error after a config change, that is why. The API token is stashed as `session.access_token` and attached as `Authorization: Bearer` by the axios interceptor in `src/app/http-client/axios.ts` (which caches it in a module-level variable for the page's lifetime).
+
+**Permissions are string claims, checked in three places.** The API JWT carries `ModulePermissions` as a comma-separated list of `MODULE.PERMISSION` (e.g. `CAG_RIDER.EDIT`); codes live in `src/app/enum/code-constants.ts` (`ModuleCodes`, `PermissionCodes`).
+
+1. `src/middleware.ts` maps the requested path → module code via the `RolePageCode` record and redirects if the session lacks it.
+2. Components gate actions with `useHasPermission(module, permission)` (`src/app/utils/permission-helper.ts`).
+3. The API re-checks server-side via `ICurrentUserService`.
+
+**Adding a UI route means adding it to `RolePageCode`** — an unlisted path resolves to no role code, and the middleware then treats the user as unauthenticated and redirects to sign-in. Dynamic segments are written Next-style (`/Rider/[riderId]`) and converted to regex.
+
+**`CurrentUser` comes from a hand-rolled middleware.** `AuthenticationMiddleware` runs *before* `UseAuthentication()` and decodes the bearer token without validating its signature, populating `context.Items["CurrentUser"]` (UserId, Email, RoleId, RiderId, CompanyIds). Real signature/lifetime validation happens afterwards in the JWT bearer handler. Most repository queries filter by `CompanyIds`, so multi-tenant scoping depends on that claim.
+
+**Routing.** Every concrete controller declares a literal `[Route("api/<name>")]` (e.g. `api/rider`, `api/client-user-id`), overriding the `[controller]` and `v{version:apiVersion}` routes inherited from `ApiBaseController`. API versioning is configured but effectively unused — one route per controller, no `/v1/` prefix in practice. The UI's `NEXT_PUBLIC_CAG_ADMIN_API_BASE_URL` already ends in `/api/`, so endpoint constants are relative (`"rider/getall"`).
+
+**Response envelope.** Controllers return `APIResponseModel { Data, StatusCode, Error }`. The UI's `unwrap()` helper reaches into `res.data.data`, so an endpoint returning a bare object instead of `Success(data)` surfaces as `undefined` in the UI. Errors are shaped `{ error, message, code }` by `ExceptionHandlingMiddleware`.
+
+## API internals
+
+Projects: `CAG.Admin.API` (controllers, middleware, all DI wiring in `Program.cs`) → `CAG.Admin.API.Application` (service interfaces/impls, `InfraInterface` repository contracts, validators) → `CAG.Admin.API.Domain` (DBModels / APIModels / CustomModels, enums, `AdminAPIException`) ← `CAG.Admin.API.DBRepository` (Dapper implementations).
+
+Every feature is the same five-part chain, and adding one means touching all of it plus two `AddScoped` lines in `Program.cs` — services and repositories are registered by hand, there is no assembly scanning:
+
+```
+Controllers/v1/XController → IXService → XService → InfraInterface/IXRepository → Repository/XRepository : GenericRepository<T>
+```
+
+Data-access specifics worth knowing before writing a repository:
+
+- `GenericRepository<T>(factory, "TableName")` — the table name is a constructor string, e.g. `RiderRepository(...) : GenericRepository<Rider>(f, "Rider")`.
+- `DapperHelper` builds INSERT/UPDATE/WHERE by **reflecting over property names**, so C# property names must match column names exactly. `[Key]` properties are excluded from INSERT and UPDATE; `CreatedAt`/`CreatedBy` are never updated; `createdAt`/`updatedAt` are stamped automatically with `DateTime.UtcNow`.
+- Anything beyond CRUD is hand-written SQL in the repository — multi-mapped joins, or `QueryProcedureAsync` for the stored procedures catalogued in `CAG.Admin.DB/Stored_Procedures.csv`.
+- `AddAsync`/`UpdateAsync`/`DeleteAsync` accept an optional `IDbConnection` + `IDbTransaction` for multi-table writes; when passed one, they will not dispose it.
+
+Errors: throw `AdminAPIException(AdminAPIExceptions.<enum>, message, statusCode)`. The enum → HTTP mapping lives in `ExceptionHandlingMiddleware`, which also fire-and-forgets a log line to the FTP server.
+
+Files (documents, vehicle/rider images, helpdesk and passport attachments, and the error log) live on an **FTP server** via FluentFTP — not on disk, not in blob storage. Per-category remote paths are under `FilePath:*` in appsettings.
+
+## UI internals
+
+App Router with three route groups: `(pages)` — list/dashboard screens wrapped in the sidebar layout, which calls `getServerSession` and redirects to `/Auth/SignIn`; `(details)` — record detail pages (`Rider/[riderId]`, `Partner-Company/[companyId]`, …); `(auth-pages)` — sign-in and error.
+
+Data flows through a strict four-layer chain; adding an endpoint means adding a file at each level:
+
+```
+constants/api-urls.ts  →  http-client/<feature>.api.ts  →  hooks/react-query/<feature>.tsx  →  page/component
+   (URL builders)          (axios + unwrap<T>)              (useQuery / useMutation)
+```
+
+Query keys are tuples like `["rider", "all"]` / `["rider", id]`; mutations invalidate by prefix.
+
+Grids are AG Grid: column definitions live in `constants/grid-props/<feature>.ts` as `buildXColumnDefs()` returning `ColDef[]`, and custom cell rendering is a component in `components/grid/`. Ant Design v6 supplies the remaining widgets, themed centrally in `constants/antd-theme-config.ts`; styling is Tailwind v4 plus `styles/ant-d-override.css`. Path alias `@/*` → `src/*`.
+
+## Database
+
+`CAG.Admin.DB/` is a **read-only reference snapshot** of the MySQL database (`CAG_Schema.sql` DDL, plus CSV exports of tables, columns, keys, indexes, stored procedures, collations, and an `.erd` diagram). There is no migration framework: schema changes are applied to the MySQL server by hand and these files must be re-exported to stay current, so check their dates before trusting them. Naming is `PascalCase` tables with `camelCase` columns, matching the C# DBModels.
+
+## Gotchas
+
+- **Secrets are committed.** `CAG.Admin.API/CAG.Admin.API/appsettings.development.json` holds a live MySQL connection string, the JWT signing key, and FTP credentials; `CAG.Admin.UI/.env`, `.env.qa`, and `.env.prod` hold `JWT_SECRET` and `NEXTAUTH_SECRET`. Follow the existing pattern only where unavoidable, never add new secrets, and never echo these values into terminal output or new files.
+- `CAG.Admin.UI/.env` sets `NODE_ENV=production` even for local dev. That flips the axios `https.Agent` (self-signed API certs get rejected) and marks the session cookie `secure`. If local login or API calls fail with a TLS error, check this first.
+- Allowed CORS origins are hardcoded in `StringConstants.apiAllowedOrigins`, not in appsettings.
+- Stray files at the API repo root (`temp_backup.cs`, `ANALYSIS_*.md`, `IMPACT_ANALYSIS_*.md`, `QUICK_REFERENCE_*.md`) are one-off investigation notes, not part of the build.
