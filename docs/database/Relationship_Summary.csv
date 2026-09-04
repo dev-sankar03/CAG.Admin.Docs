@@ -1,0 +1,44 @@
+"child_table","child_column","parent_table","parent_column","relationship","DELETE_RULE","UPDATE_RULE"
+OrderValue,batchId,Batch,batchId,OrderValue.batchId → Batch.batchId,CASCADE,RESTRICT
+RiderOrder,batchVehicleCategoryId,BatchVehicleCategory,batchVehicleCategoryId,RiderOrder.batchVehicleCategoryId → BatchVehicleCategory.batchVehicleCategoryId,RESTRICT,RESTRICT
+ClientUserId,clientId,Client,clientId,ClientUserId.clientId → Client.clientId,RESTRICT,RESTRICT
+OrderValue,clientId,Client,clientId,OrderValue.clientId → Client.clientId,RESTRICT,RESTRICT
+SalesCashDetails,clientId,Client,clientId,SalesCashDetails.clientId → Client.clientId,RESTRICT,CASCADE
+SalesCashEntry,clientId,Client,clientId,SalesCashEntry.clientId → Client.clientId,RESTRICT,CASCADE
+CompanyDocument,companyId,Company,companyId,CompanyDocument.companyId → Company.companyId,RESTRICT,RESTRICT
+CompanyPayrollSummary,companyId,Company,companyId,CompanyPayrollSummary.companyId → Company.companyId,RESTRICT,RESTRICT
+CompanyPerformance,companyId,Company,companyId,CompanyPerformance.companyId → Company.companyId,RESTRICT,CASCADE
+Partner,companyId,Company,companyId,Partner.companyId → Company.companyId,RESTRICT,RESTRICT
+Rider,companyId,Company,companyId,Rider.companyId → Company.companyId,RESTRICT,RESTRICT
+SalesCashDetails,companyId,Company,companyId,SalesCashDetails.companyId → Company.companyId,RESTRICT,CASCADE
+SalesCashEntry,companyId,Company,companyId,SalesCashEntry.companyId → Company.companyId,RESTRICT,CASCADE
+UserCompany,companyId,Company,companyId,UserCompany.companyId → Company.companyId,CASCADE,RESTRICT
+Vehicle,companyId,Company,companyId,Vehicle.companyId → Company.companyId,RESTRICT,RESTRICT
+LeaveRequestComment,leaveRequestId,LeaveRequest,leaveRequestId,LeaveRequestComment.leaveRequestId → LeaveRequest.leaveRequestId,RESTRICT,RESTRICT
+PayrollEarnings,payrollId,Payroll,payrollId,PayrollEarnings.payrollId → Payroll.payrollId,CASCADE,RESTRICT
+PayrollExpenses,payrollId,Payroll,payrollId,PayrollExpenses.payrollId → Payroll.payrollId,CASCADE,RESTRICT
+PayrollVehicleEMI,payrollId,Payroll,payrollId,PayrollVehicleEMI.payrollId → Payroll.payrollId,CASCADE,RESTRICT
+RiderProperty,propertyId,Property,propertyId,RiderProperty.propertyId → Property.propertyId,CASCADE,CASCADE
+Attendance,riderId,Rider,riderId,Attendance.riderId → Rider.riderId,RESTRICT,RESTRICT
+ClientRiderConfig,riderId,Rider,riderId,ClientRiderConfig.riderId → Rider.riderId,RESTRICT,RESTRICT
+ClientUserId,tempRiderId,Rider,riderId,ClientUserId.tempRiderId → Rider.riderId,SET NULL,CASCADE
+HrWorkflow,riderId,Rider,riderId,HrWorkflow.riderId → Rider.riderId,RESTRICT,RESTRICT
+LeaveRequest,riderId,Rider,riderId,LeaveRequest.riderId → Rider.riderId,RESTRICT,RESTRICT
+OrderList,riderId,Rider,riderId,OrderList.riderId → Rider.riderId,RESTRICT,RESTRICT
+RiderOrder,riderId,Rider,riderId,RiderOrder.riderId → Rider.riderId,RESTRICT,RESTRICT
+RiderPerformance,riderId,Rider,riderId,RiderPerformance.riderId → Rider.riderId,RESTRICT,CASCADE
+RiderProperty,riderId,Rider,riderId,RiderProperty.riderId → Rider.riderId,RESTRICT,RESTRICT
+RiderVehicleConfig,riderId,Rider,riderId,RiderVehicleConfig.riderId → Rider.riderId,RESTRICT,RESTRICT
+SalesCashDetails,riderId,Rider,riderId,SalesCashDetails.riderId → Rider.riderId,RESTRICT,CASCADE
+SalesCashEntry,riderId,Rider,riderId,SalesCashEntry.riderId → Rider.riderId,RESTRICT,CASCADE
+SimCard,assignedTo,Rider,riderId,SimCard.assignedTo → Rider.riderId,SET NULL,CASCADE
+User,riderId,Rider,riderId,User.riderId → Rider.riderId,CASCADE,RESTRICT
+Rider,statusId,RiderStatus,statusId,Rider.statusId → RiderStatus.statusId,RESTRICT,RESTRICT
+User,roleId,Role,roleId,User.roleId → Role.roleId,RESTRICT,RESTRICT
+HrWorkflow,taskId,Task,taskId,HrWorkflow.taskId → Task.taskId,RESTRICT,CASCADE
+HrWorkflow,taskStatusId,TaskStatus,taskStatusId,HrWorkflow.taskStatusId → TaskStatus.taskStatusId,RESTRICT,RESTRICT
+Helpdesk,type,TicketType,typeId,Helpdesk.type → TicketType.typeId,RESTRICT,CASCADE
+PassportRequest,type,TicketType,typeId,PassportRequest.type → TicketType.typeId,RESTRICT,CASCADE
+UserCompany,userId,User,userId,UserCompany.userId → User.userId,CASCADE,RESTRICT
+RiderVehicleConfig,vehicleId,Vehicle,vehicleId,RiderVehicleConfig.vehicleId → Vehicle.vehicleId,RESTRICT,RESTRICT
+VehicleImage,vehicleId,Vehicle,vehicleId,VehicleImage.vehicleId → Vehicle.vehicleId,RESTRICT,RESTRICT

@@ -1,0 +1,458 @@
+"ROUTINE_NAME","ROUTINE_TYPE","return_type","return_detail","ROUTINE_DEFINITION","IS_DETERMINISTIC","SQL_DATA_ACCESS","DEFINER","CREATED","LAST_ALTERED","ROUTINE_COMMENT"
+sp_generate_company_payroll,PROCEDURE,"",,"BEGIN
+    DECLARE done INT DEFAULT 0;
+    DECLARE v_riderId VARCHAR(20);
+    DECLARE v_totalRiders INT;
+    DECLARE v_companyTotalAmount DECIMAL(10,2) DEFAULT 0;
+    DECLARE v_ridersProcessed INT DEFAULT 0;
+    DECLARE v_ridersSkipped INT DEFAULT 0;
+    
+    DECLARE v_payrollId INT;
+    DECLARE v_netPay DECIMAL(10,2);
+    DECLARE v_success TINYINT;
+    DECLARE v_errorMessage TEXT;
+    
+    DECLARE rider_cursor CURSOR FOR
+        WITH latest_crc AS (
+            SELECT
+                crc.clientUserId,
+                cui.clientId,
+                crc.riderId,
+                cui.riderId AS permanentRiderId,
+                ROW_NUMBER() OVER (
+                    PARTITION BY crc.riderId
+                    ORDER BY crc.startDate DESC
+                ) AS rn
+            FROM ClientRiderConfig crc
+            INNER JOIN ClientUserId cui ON crc.clientUserId = cui.clientUserId
+            WHERE (
+                (crc.endDate IS NULL AND crc.startDate <= LAST_DAY(p_payMonth))
+                OR (
+                    crc.endDate >= p_payMonth
+                    AND crc.endDate <= LAST_DAY(p_payMonth)
+                )
+            )
+        ),
+        all_riders AS (
+            SELECT
+                clientId,
+                clientUserId,
+                riderId,
+                0 AS isFullTime
+            FROM latest_crc
+            WHERE rn = 1
+            
+            UNION ALL
+            
+            SELECT
+                clientId,
+                clientUserId,
+                permanentRiderId AS riderId,
+                1 AS isFullTime
+            FROM latest_crc
+            WHERE rn = 1
+                AND permanentRiderId IS NOT NULL
+        )
+        SELECT ar.riderId
+        FROM all_riders ar
+        INNER JOIN Rider r ON ar.riderId = r.riderId
+        INNER JOIN Company c ON c.companyId = r.companyId
+        WHERE r.isActive = 1
+        	AND c.companyId = p_companyId
+            AND (
+                p_retryFailedRiders = 0
+                OR EXISTS (
+                    SELECT 1
+                    FROM PayrollErrorLog prl
+                    WHERE prl.riderId = r.riderId
+                        AND prl.companyId = r.companyId
+                        AND prl.payMonth = p_payMonth
+                )
+            )
+        GROUP BY ar.riderId;
+    
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = 1;
+    
+    /* ================= INITIALIZATION ================= */
+    SET @companyId := p_companyId;
+    SET @payMonth := DATE_FORMAT(p_payMonth, '%Y-%m-01');
+    SET @retryFailed := p_retryFailedRiders;
+    SET @createdBy := p_createdBy;
+    SET p_result = 0;
+    
+    START TRANSACTION;
+    
+    /* ================= SUMMARY INITIALIZATION ================= */
+    INSERT INTO CompanyPayrollSummary (
+        companyId,
+        payMonth,
+        status,
+        createdBy,
+        createdAt
+    )
+    VALUES (
+        @companyId,
+        @payMonth,
+        'PROCESSING',
+        @createdBy,
+        NOW()
+    )
+    ON DUPLICATE KEY UPDATE
+        status = 'PROCESSING',
+        updatedAt = NOW(),
+        updatedBy = @createdBy;
+    
+    COMMIT;
+    
+    OPEN rider_cursor;
+    
+    /* ================= RIDER PROCESSING LOOP ================= */
+    rider_loop: LOOP
+        FETCH rider_cursor INTO v_riderId;
+        
+        IF done = 1 THEN
+            LEAVE rider_loop;
+        END IF;
+        
+        CALL sp_process_rider_payroll(
+            v_riderId,
+            @companyId,
+            @payMonth,
+            @createdBy,
+            v_payrollId,
+            v_netPay,
+            v_success,
+            v_errorMessage
+        );
+        
+        IF v_success = 1 THEN
+            SET v_ridersProcessed = v_ridersProcessed + 1;
+            SET v_companyTotalAmount = v_companyTotalAmount + IFNULL(v_netPay, 0);
+        ELSE
+            SET v_ridersSkipped = v_ridersSkipped + 1;
+        END IF;
+        
+    END LOOP;
+    
+    CLOSE rider_cursor;
+    
+    /* ================= SUMMARY FINALIZATION ================= */
+    START TRANSACTION;
+    
+    UPDATE CompanyPayrollSummary
+    SET
+        ridersProcessed = IFNULL(ridersProcessed, 0) + v_ridersProcessed,
+        ridersSkipped = v_ridersSkipped,
+        totalPayableAmount = IFNULL(totalPayableAmount, 0) + v_companyTotalAmount,
+        status = CASE
+            WHEN v_ridersSkipped = 0 THEN 'COMPLETED'
+            ELSE 'PARTIALLY_DONE'
+        END,
+        updatedAt = NOW(),
+        updatedBy = @createdBy
+    WHERE companyId = @companyId
+        AND payMonth = @payMonth;
+    
+    COMMIT;
+    
+    SET p_result = 1;
+    
+END",NO,CONTAINS SQL,admin@%,"2026-01-25 08:12:50","2026-01-25 08:12:50",""
+sp_process_rider_payroll,PROCEDURE,"",,"BEGIN
+    DECLARE v_payrollId INT;
+    DECLARE v_riderNetPay DECIMAL(10,2) DEFAULT 0;
+    DECLARE v_totalEarnings DECIMAL(10,2) DEFAULT 0;
+    DECLARE v_totalExpenses DECIMAL(10,2) DEFAULT 0;
+    DECLARE v_totalEMI DECIMAL(10,2) DEFAULT 0;
+    DECLARE v_monthEnd DATE;
+    DECLARE v_errno INT;
+
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        GET DIAGNOSTICS CONDITION 1 
+            v_errno = MYSQL_ERRNO, 
+            p_errorMessage = MESSAGE_TEXT;
+        
+        ROLLBACK;
+        
+        INSERT INTO PayrollErrorLog (
+            procedureName,
+            riderId,
+            companyId,
+            payMonth,
+            errorMessage,
+            errorCode,
+            createdAt
+        )
+        VALUES (
+            'sp_process_rider_payroll',
+            p_riderId,
+            p_companyId,
+            p_payMonth,
+            p_errorMessage,
+            v_errno,
+            NOW()
+        );
+        
+        SET p_success = 0;
+        SET p_payrollId = NULL;
+        SET p_netPay = 0;
+    END;
+
+    proc_body: BEGIN
+        /* ================= INITIALIZATION ================= */
+        SET v_monthEnd = LAST_DAY(p_payMonth);
+        SET p_success = 0;
+        SET p_errorMessage = NULL;
+        
+        START TRANSACTION;
+
+        /* ================= PAYROLL HEADER ================= */
+        INSERT INTO Payroll (
+            payMonth,
+            riderId,
+            riderName,
+            isFullTime,
+            clientId,
+            clientUserId,
+            clientName,
+            vehicleId,
+            vehicleNumber,
+            companyId,
+            companyCode,
+            companyName,
+            iznamalSalary,
+            createdAt,
+            createdBy
+        )
+        SELECT 
+            p_payMonth,
+            r.riderId,
+            r.riderName,
+            CASE WHEN cu.riderId IS NOT NULL THEN 1 ELSE 0 END AS isFullTime,
+            cl.clientId,
+            cu.clientUserId,
+            cl.clientName,
+            IFNULL(v.vehicleId, 'Un-assigned'),
+            IFNULL(v.vehicleNumber, 'Un-assigned'),
+            c.companyId,
+            c.code,
+            c.name,
+            r.iznamalSalary,
+            NOW(),
+            p_createdBy
+        FROM Rider r
+        JOIN Company c ON c.companyId = r.companyId
+        JOIN ClientUserId cu ON cu.riderId = r.riderId
+        JOIN Client cl ON cl.clientId = cu.clientId
+        LEFT JOIN RiderVehicleConfig rvc ON rvc.riderId = r.riderId AND rvc.status = 1
+        LEFT JOIN Vehicle v ON v.vehicleId = rvc.vehicleId
+        WHERE r.riderId = p_riderId;
+
+        IF ROW_COUNT() = 0 THEN
+            INSERT INTO PayrollErrorLog (
+                procedureName,
+                riderId,
+                companyId,
+                payMonth,
+                errorMessage,
+                createdAt
+            )
+            VALUES (
+                'sp_generate_single_rider_payroll',
+                p_riderId,
+                p_companyId,
+                p_payMonth,
+                'Rider not found or missing client mapping',
+                NOW()
+            );
+            LEAVE proc_body;
+        END IF;
+
+        SET v_payrollId = LAST_INSERT_ID();
+
+        IF v_payrollId IS NULL OR v_payrollId = 0 THEN
+            SET p_errorMessage = 'Failed to create payroll header';
+            SET p_success = 0;
+            ROLLBACK;
+            LEAVE proc_body;
+        END IF;
+
+        /* ================= EARNINGS ================= */
+        INSERT INTO PayrollEarnings (
+            payrollId,
+            singleOrderCount,
+            doubleOrderCount,
+            singleOrderRate,
+            doubleOrderRate,
+            batchNo
+        )
+        SELECT 
+            v_payrollId,
+            SUM(ro.singleOrder),
+            SUM(ro.doubleOrder),
+            ov.singleOrderValue,
+            ov.doubleOrderValue,
+            ro.batchNo
+        FROM RiderOrder ro
+        INNER JOIN Batch b ON b.batchNo = ro.batchNo
+        INNER JOIN OrderValue ov ON ov.clientId = ro.clientId 
+            AND ov.batchVehicleCategoryId = ro.batchVehicleCategoryId and ov.batchId = b.batchId 
+        WHERE ro.riderId = p_riderId
+            AND ro.orderMonth = p_payMonth
+        GROUP BY ro.batchNo, ro.batchVehicleCategoryId;
+
+        UPDATE Payroll
+        SET grossEarnings = (
+            SELECT IFNULL(
+                SUM((singleOrderCount * singleOrderRate) + (doubleOrderCount * doubleOrderRate)),
+                0
+            )
+            FROM PayrollEarnings
+            WHERE payrollId = v_payrollId
+        )
+        WHERE payrollId = v_payrollId;
+
+        SELECT grossEarnings 
+        INTO v_totalEarnings
+        FROM Payroll
+        WHERE payrollId = v_payrollId;
+
+        /* ================= EXPENSES ================= */
+        INSERT INTO PayrollExpenses (
+            payrollId,
+            trafficFines,
+            adminFees,
+            processingFees,
+            garageBills,
+            maroorFines,
+            previousBalances,
+            dgDeduction,
+            salesCash,
+            incentives,
+            extras,
+            mobileBills
+        )
+        SELECT 
+            v_payrollId,
+            r.trafficFines,
+            r.adminFees,
+            r.processingFees,
+            r.garageBills,
+            r.maroorFines,
+            r.previousBalances,
+            r.dgDeduction,
+            IFNULL(s.pendingDues, 0),
+            r.incentives,
+            r.advances + r.akamaRenewalAmount + r.miscellaneousExpenses,
+            r.mobileBills
+        FROM Rider r
+        LEFT JOIN SalesCashDetails s ON s.riderId = r.riderId 
+            AND s.entryDate = v_monthEnd
+        WHERE r.riderId = p_riderId;
+
+        SELECT IFNULL(
+            trafficFines + adminFees + processingFees + garageBills + 
+            maroorFines + previousBalances + dgDeduction + salesCash + 
+            extras + mobileBills - incentives,
+            0
+        )
+        INTO v_totalExpenses
+        FROM PayrollExpenses
+        WHERE payrollId = v_payrollId;
+
+        UPDATE Payroll
+        SET totalExpenses = v_totalExpenses
+        WHERE payrollId = v_payrollId;
+
+        /* ================= EMI ================= */
+        INSERT INTO PayrollVehicleEMI (
+            payrollId,
+            vehicleId,
+            isEmiSkipped,
+            emiMonth,
+            principalAmount,
+            interestRate,
+            monthlyEmi,
+            remainingBalance
+        )
+        SELECT 
+            v_payrollId,
+            vehicleId,
+            isEmiSkipped,
+            p_payMonth,
+            principalAmount,
+            interestRate,
+            monthlyEmi,
+            totalPayable - totalPaid
+        FROM CarEmi
+        WHERE riderId = p_riderId
+            AND isActive = 1
+            AND contractStartDate >= DATE_FORMAT(p_payMonth, '%Y-%m-01')
+            AND contractStartDate <= v_monthEnd;
+
+        SELECT IFNULL(
+            SUM(CASE WHEN isEmiSkipped = 0 THEN monthlyEmi ELSE 0 END),
+            0
+        )
+        INTO v_totalEMI
+        FROM PayrollVehicleEMI
+        WHERE payrollId = v_payrollId;
+
+        UPDATE CarEmi
+        SET 
+            totalPaid = CASE 
+                WHEN isEmiSkipped = 1 THEN totalPaid 
+                ELSE totalPaid + monthlyEmi 
+            END,
+            isActive = CASE 
+                WHEN (CASE WHEN isEmiSkipped = 1 THEN totalPaid ELSE totalPaid + monthlyEmi END) >= totalPayable 
+                THEN 0 
+                ELSE isActive 
+            END,
+            monthlyEmi = CASE 
+                WHEN monthlyEmi >= totalPayable - totalPaid 
+                THEN totalPayable - totalPaid 
+                ELSE monthlyEmi 
+            END,
+            isEmiSkipped = 0,
+            skipCount = skipCount + CASE WHEN isEmiSkipped = 1 THEN 1 ELSE 0 END
+        WHERE riderId = p_riderId
+            AND isActive = 1;
+
+		UPDATE Rider
+		SET previousBalances =
+		    CASE
+		        WHEN v_totalEarnings - v_totalExpenses < 0
+		            THEN ABS(v_totalEarnings - v_totalExpenses)
+		        ELSE 0
+		    END
+		WHERE riderId = p_riderId;
+
+
+        UPDATE Rider
+        SET 
+            trafficFines = 0,
+            adminFees = 0,
+            processingFees = 0,
+            garageBills = 0,
+            maroorFines = 0,
+            dgDeduction = 0,
+            incentives = 0,
+            advances = 0,
+            akamaRenewalAmount = 0,
+            miscellaneousExpenses = 0
+        WHERE riderId = p_riderId;
+
+        /* ================= NET PAY CALCULATION ================= */
+        SET v_riderNetPay = v_totalEarnings - v_totalExpenses - v_totalEMI;
+
+        COMMIT;
+
+        /* ================= OUTPUT PARAMETERS ================= */
+        SET p_payrollId = v_payrollId;
+        SET p_netPay = v_riderNetPay;
+        SET p_success = 1;
+
+    END proc_body;
+END",NO,CONTAINS SQL,admin@%,"2026-04-03 23:55:08","2026-04-03 23:55:08",""

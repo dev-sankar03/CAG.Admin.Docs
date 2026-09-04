@@ -1,0 +1,7 @@
+"TABLE_NAME","CONSTRAINT_NAME","CHECK_CLAUSE"
+ClientRiderConfig,CONSTRAINT_1,`endDate` is null or `endDate` >= `startDate`
+Helpdesk,comments,json_valid(`comments`)
+Helpdesk,comments,json_valid(`comments`)
+HrWorkflow,taskDetails,json_valid(`taskDetails`)
+PassportRequest,comments,json_valid(`comments`)
+PassportRequest,comments,json_valid(`comments`)
