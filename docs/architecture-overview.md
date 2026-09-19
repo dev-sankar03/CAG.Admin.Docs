@@ -2,7 +2,7 @@
 
 This is the cross-module synthesis of the 20 module documents in this `docs/` folder. Where a module document establishes a fact within its own domain, this document connects it to the rest of the system — which modules share it, which findings recur across module boundaries, and what that means at the platform level. Every claim here is either drawn directly from a module doc (linked) or from direct inspection of `docs/database/schema.sql` and the underlying source noted inline. Nothing here is invented; where a conclusion required interpretation, it is marked **[Inferred]**, matching the convention used throughout the module docs.
 
-**Scope:** `CAG.Admin.API` (.NET 9 Web API), `CAG.Admin.UI` (Next.js 15), and the MySQL database they share. Two independent git repositories, no root-level version control, no CI, no automated tests in either tier.
+**Scope:** `CAG.Admin.API` (.NET 10 Web API), `CAG.Admin.UI` (Next.js 15), and the MySQL database they share. Two independent git repositories, no root-level version control, no CI, no automated tests in either tier.
 
 ---
 
@@ -353,7 +353,7 @@ There is no shared logging abstraction (`ILogger` is not used anywhere in the re
 | Password hashing | BCrypt.Net-Next | 4.0.3 | Work factor 12 |
 | File transport | FluentFTP | 53.0.2 | The platform's only external storage integration |
 | Excel import/export | ClosedXML | 0.105.0 | Used by 5 of the platform's bulk-import/export paths |
-| API docs | Scalar.AspNetCore | 2.8.11 | `/scalar/v1` |
+| API docs | Microsoft.AspNetCore.OpenApi + Swashbuckle.AspNetCore.SwaggerUI | 10.0.x / 6.9.0 | `/swagger` (JSON at `/openapi/v1.json`) |
 | API versioning | Asp.Versioning.Mvc | 8.1.0 | Configured but inert — every controller overrides its route with a literal, unversioned path |
 | UI framework | Next.js (App Router) | ^15.5.7 | |
 | UI runtime | React / React DOM | 19.1.0 | |
