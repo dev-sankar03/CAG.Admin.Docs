@@ -7,6 +7,13 @@
 
 > ⚠️ **Source document appears incomplete.** The PDF text stream ends mid-sentence on the Shareholder Profit-Sharing section ("*Include filters by Comp*…"). Everything after that point (presumably "Company", possibly more filters, and any sections that may have followed) is not available to this analysis. See [Open Questions](#13-open-questions--clarifications-required), Q1.
 
+> 📎 **Related detail docs (added later):**
+> - **[`phase-ii-requirements/`](phase-ii-requirements/README.md)** — the same requirements split one-file-per-set, each with a UI-side / API-side **question + suggestion** breakdown. Use it as the per-requirement companion to this master analysis.
+> - **[`known-behaviours.md`](known-behaviours.md)** — a consolidated, severity-tagged triage of every codebase quirk/bug referenced across the docs (several are Phase II fix candidates).
+> - **[`request-lifecycle.md`](request-lifecycle.md)** — one request traced hop-by-hop (UI → API → SQL) for onboarding new contributors.
+>
+> ℹ️ **Framework note:** this analysis header records ".NET 9" as of its 2026-09-04 preparation date; the working tree now targets **.NET 10** and serves API docs via **Swagger at `/swagger`** (not Scalar). Treat the current code as ground truth where it differs from this dated snapshot.
+
 ---
 
 ## 1. Executive Summary
