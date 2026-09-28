@@ -392,7 +392,7 @@ graph LR
 
 - **Dev and prod MySQL share a host and credentials**, distinguished only by database name (`CAG_Admin_Dev` vs. `CAG_Admin_PROD`); both connect with `SslMode=none`.
 - **JWT signing secrets (`AppSettings:Token` / UI `JWT_SECRET`) are identical across dev, QA, and prod** in the config files inspected — a token minted against the dev database is valid against production.
-- **Containers**: the API ships a multi-stage `Dockerfile` (`mcr.microsoft.com/dotnet/sdk:9.0-alpine` → `aspnet:9.0-alpine`, port 8080); the UI ships its own (`node:22-alpine`, port 3000, selecting `.env.qa`/`.env.prod` via an `APP_ENV` build arg that is consumed but never declared, so it silently falls through to the committed default `.env` if omitted).
+- **Containers**: the API ships a multi-stage `Dockerfile` (`mcr.microsoft.com/dotnet/sdk:10.0-alpine` → `aspnet:10.0-alpine`, port 8080); the UI ships its own (`node:22-alpine`, port 3000, selecting `.env.qa`/`.env.prod` via an `APP_ENV` build arg (`--build-arg APP_ENV=qa|prod`); if omitted it falls through to the committed default `.env`).
 - **No CI/CD pipeline moves code between these environments** — `.github/workflows/` is empty in the API repo, absent in the UI repo. How a build reaches QA or production is not recorded in either repository.
 - **Credentials for all of the above (MySQL, FTP, JWT signing keys, NextAuth secret) are committed to source control** in `appsettings.development.json`, `appsettings.production.json`, and the UI's `.env`/`.env.qa`/`.env.prod` files.
 

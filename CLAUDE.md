@@ -39,7 +39,7 @@ npm run lint    # eslint, next/core-web-vitals + next/typescript
 npx tsc --noEmit
 ```
 
-**There are no tests in either repo.** `CAG.Admin.API.UnitTests/` contains only a stale `obj/` folder — the csproj is gone and the project is not in the solution, so `dotnet test` does nothing. `CAG.Admin.UI/UI_TEST_FLOWS.md` is a hand-written manual QA script, not automated tests. If asked to "run the tests", say so rather than inventing a command. There is also no CI: `CAG.Admin.API/.github/workflows/` is empty and there are no compose files. Both repos ship a standalone `Dockerfile` (API → `mcr.microsoft.com/dotnet/aspnet:9.0-alpine`, port 8080; UI → `node:22-alpine`, port 3000, copying `.env.qa`/`.env.prod` to `.env.production` based on `APP_ENV`).
+**There are no tests in either repo.** `CAG.Admin.API.UnitTests/` contains only a stale `obj/` folder — the csproj is gone and the project is not in the solution, so `dotnet test` does nothing. `CAG.Admin.UI/UI_TEST_FLOWS.md` is a hand-written manual QA script, not automated tests. If asked to "run the tests", say so rather than inventing a command. There is also no CI: `CAG.Admin.API/.github/workflows/` is empty and there are no compose files. Both repos ship a standalone `Dockerfile` (API → `mcr.microsoft.com/dotnet/aspnet:10.0-alpine`, port 8080; UI → `node:22-alpine`, port 3000, copying `.env.qa`/`.env.prod` to `.env.production` based on `APP_ENV`).
 
 ## The API ↔ UI contract
 
@@ -100,6 +100,19 @@ Grids are AG Grid: column definitions live in `constants/grid-props/<feature>.ts
 ## Database
 
 `CAG.Admin.DB/` is a **read-only reference snapshot** of the MySQL database (`CAG_Schema.sql` DDL, plus CSV exports of tables, columns, keys, indexes, stored procedures, collations, and an `.erd` diagram). There is no migration framework: schema changes are applied to the MySQL server by hand and these files must be re-exported to stay current, so check their dates before trusting them. Naming is `PascalCase` tables with `camelCase` columns, matching the C# DBModels.
+
+Environments: `CAG_Admin_Dev` (connection in `appsettings.development.json`) and `CAG_Admin_PROD` (`appsettings.production.json`), both on the same MySQL host; QA may exist too.
+
+### Every DB change must ship as a script in the repo
+
+Any change to the database — DDL (tables, columns, indexes, procedures) **or** data (seed rows, new `DocumentType` entries, backfills) — must be saved as a script in `CAG.Admin.API/Database/Migrations/` so it can be replayed on QA and production. Never change a database only by hand or through an ad-hoc query tool.
+
+- **Name:** `YYYY-MM-DD_ShortDescription.sql` (e.g. `2026-09-06_ExpenseModule.sql`), so they sort in apply order.
+- **Header comment:** what it does, which feature/Phase II item it belongs to, and any code that depends on it.
+- **No hardcoded database:** don't put `USE CAG_Admin_Dev;` in new scripts — select the target database when running it, so the same file works in every environment. (The existing `2026-09-06_ExpenseModule.sql` still has one; remove or change it before running on QA/prod.)
+- **Re-runnable where possible:** `CREATE TABLE IF NOT EXISTS`, `INSERT ... WHERE NOT EXISTS` / `INSERT IGNORE`, so re-applying doesn't fail or duplicate data.
+- **Apply to dev first**, then commit the script with the code that needs it. Note in the PR/commit which environments it has been applied to.
+- Read-only inspection queries (`SELECT`) need no script.
 
 ## Gotchas
 

@@ -743,7 +743,7 @@ Every change is validated by hand against a shared dev database.
 
 Both repositories ship a standalone `Dockerfile`, built and run independently.
 
-**API** — multi-stage, `mcr.microsoft.com/dotnet/sdk:9.0-alpine` → `aspnet:9.0-alpine`:
+**API** — multi-stage, `mcr.microsoft.com/dotnet/sdk:10.0-alpine` → `aspnet:10.0-alpine`:
 
 ```
 restore → build (Release) → publish (/p:UseAppHost=false) → runtime
@@ -764,7 +764,7 @@ builder → selects env by APP_ENV:  qa → cp .env.qa .env.production
 runner  → non-root `app`; EXPOSE 3000; CMD npm run start
 ```
 
-`APP_ENV` is consumed but never declared as an `ARG`, so it is empty unless the build passes it — the silent default is the "Using default production environment" branch, which leaves `.env.production` absent and falls back to the committed `.env` (the one with `NODE_ENV=production` and localhost URLs). The runner stage also copies the **entire** builder `/app` (including `node_modules` and source) rather than a standalone output, producing a much larger image than Next.js standalone mode would.
+`APP_ENV` is declared as a build `ARG` in the builder stage (`--build-arg APP_ENV=qa|prod`); if omitted, the default is the "Using default production environment" branch, which leaves `.env.production` absent and falls back to the committed `.env` (the one with `NODE_ENV=production` and localhost URLs). The runner stage also copies the **entire** builder `/app` (including `node_modules` and source) rather than a standalone output, producing a much larger image than Next.js standalone mode would.
 
 Typo in the UI Dockerfile: `getent passed app` should be `getent passwd app`. It is masked by the `||` fallback, so `adduser` runs every build.
 
