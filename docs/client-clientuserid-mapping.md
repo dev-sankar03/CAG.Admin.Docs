@@ -35,83 +35,111 @@ CAG's riders deliver under client-issued app accounts (e.g., a food-delivery pla
 
 ### 2.3 Business rules & logic
 
-**The data model, precisely** (confirmed by reading both DBModels and every service method, not inferred):
+**Rewritten September 2026** (client-user-id-assignment-rework) to replace the model described further below in §4 — that section still documents the *prior* design and the incident that motivated this rewrite; treat §4 as history, not current behavior.
 
-- `ClientUserId` is a **slot**: one row per client-issued account, holding at most one `RiderId` (permanent) and at most one `TempRiderId` (temporary cover) at a time, plus an `IsAssigned` flag and a `ContractExpiry` date.
-- `ClientRiderConfig` is a **per-rider assignment history** row: `(RiderId, ClientUserId, StartDate, EndDate, IsActive)`. Critically, it has **no field distinguishing permanent from temporary** — a slot can have *two simultaneously-active* `ClientRiderConfig` rows (one for the permanent rider's ID, one for the temp rider's ID), disambiguated only by which `RiderId` each row carries, not by any "type" column. [Confirmed by reading `ClientRiderConfigService.UpdateEndDateAsync`'s lookup filter, which keys on `(RiderId, ClientUserId, IsActive)`, not on `ClientUserId` alone]
-- **Starting a permanent rider requires the slot to be currently unassigned to a *different* rider** — `StartPermanentRider` throws `ValidationFailed` if `cui.IsAssigned` is true, *or* if `cui.RiderId != riderId` (explicit, `RiderAssignmentService`). Ending it requires the reverse (`!cui.IsAssigned` → error).
-- **Starting a temporary rider requires the slot's permanent side to be currently assigned** (`StartTemporaryRider` throws if `cui.IsAssigned` — note: this checks the *same* `IsAssigned` flag the permanent flow uses, not a separate temp-specific flag) [Inferred: this reads as intending "you can't add temp cover to an already-permanently-assigned-and-marked slot," but see §4.1 for a concrete inconsistency this creates].
-- **Every assignment start/end pairs a `ClientRiderConfig` history write with a `ClientUserId` slot-state write**, always in the same order (history first, then slot state) across all four `RiderAssignmentService` methods — this consistent ordering is what the May 2026 fix (below) generalized into the direct-edit path too.
-- **The documented incident and its fix**: `PUT api/client-user-id` (`ClientUserIdService.Update`) previously updated only `ClientUserId.RiderId`, leaving `ClientRiderConfig` untouched — so a direct rider reassignment through this one endpoint diverged from the `ClientRiderConfig` history that [Rider Orders & Batch Billing](rider-orders-batch-billing.md)'s import used as its source of truth, causing orders to be attributed to the *previous* rider (`RD261011`) instead of the newly-assigned one (`RD261089`). The fix, present in the current `ClientUserIdService.Update` (confirmed by reading it): when `riderId` changes, it now first ends the current active `ClientRiderConfig` (if the active config's rider differs from the new one) and creates a new active one, *before* updating `ClientUserId.RiderId` itself. The old direct-update code path (`UpdateClientUserIdAsync` called straight from the controller) is now **commented out** in `ClientUserIdController.cs` rather than deleted — a visible fossil of the incident.
-- **`AddClientUserIdAsync` no longer auto-activates the assigned rider** — a status-activation call (`RiderService.ChangeRiderStatus(riderId, RiderStatuses.Active)`) is present in the source but commented out (explicit). [Inferred] Either superseded by the `update-rider-assignment` endpoint's explicit `ChangeRiderStatus` call (which *is* live — see below) or a deliberately disabled rule; the effect today is that creating a slot with a rider pre-assigned does not, by itself, flip that rider to Active.
-- **`PUT api/client-user-id/update-rider-assignment` explicitly toggles rider status as a side effect**: `Action=START` sets the rider `Active`; `Action=END` sets them `FreeId` (explicit, `ClientUserIdController.UpdateClientUserId`) — this is a *third* place (alongside [Rider Management](rider-management.md)'s own status endpoints) that can change `Rider.StatusId`.
-- **Deleting a slot cascades status + history cleanup**: `DeleteClientUserIdAsync` looks up both the permanent and temp rider (if any), flips either from `Active` to `FreeId`, and closes out both their `ClientRiderConfig` histories with today's date — all run concurrently via `Task.WhenAll` (explicit).
+**The data model, precisely:**
+
+- `ClientUserId` is a **slot**: one row per client-issued account. It carries `StatusId` (`ClientUserIdStatus`: 1 Active, 2 Client Suspended, 3 Churn, 4 Clearance Completed, 5 FreeId, 6 Working Part-Time), plus the denormalized `RiderId` (permanent holder), `TempRiderId` (temp cover), `IsAssigned`, and `ContractExpiry`. `StatusId` is never written directly by a caller — it's always derived by `RiderAssignmentService` from whether the slot has an active `ClientRiderConfig` and that row's `AssignmentType`.
+- `ClientRiderConfig` is a **per-assignment-period history** row: `(RiderId, ClientUserId, StartDate, EndDate, IsActive, AssignmentType, EndReason)`. `AssignmentType` (`PERMANENT`/`TEMP`) makes history self-describing — the single biggest gap in the prior model (§4.2 below). `EndReason` is one of `Ended`, `Switched`, `ClientSuspended`, `Churn`, `ReturnedToHome`, `Vacation`, `SlotDeleted`.
+- `ClientUserIdStatusHistory` is new: one row per status transition (`fromStatusId`, `toStatusId`, `effectiveDate`, `reason`, `changedBy`), giving an audit trail status changes previously had none of (§3.13's old gap).
+- `Rider.HireTypeId` (1 Full Time / 2 Part Time) is now set once at onboarding and never updated — `Rider.EmploymentType` remains the *current* type, which can diverge from hire type over a rider's tenure.
+
+**Invariants** (I1–I6), enforced in `RiderAssignmentService` up front and, since Phase 4 of the rework, backed by unique indexes on generated DB columns as a race-condition safety net:
+
+- I1/I2 — a rider has at most one active `ClientRiderConfig`; a slot has at most one active `ClientRiderConfig`. (`UX_CRC_ActiveRider`, `UX_CRC_ActiveSlot`)
+- I3 — a rider is the permanent holder (`ClientUserId.riderId`) of at most one slot whose status isn't Churn/Clearance Completed. (`UX_CUI_LiveHolder`)
+- I4 — status ∈ {Active, Working Part-Time} ⇔ an active CRC exists ⇔ `isAssigned = 1`; `tempRiderId` is set ⇔ status = Working Part-Time.
+- I5 — a new assignment period must start on/after the latest ended period, per rider and per slot (no overlap on new writes; historical overlaps from before the rework are left as-is).
+- I6 — dates can't be in the future; `endDate ≥ startDate` (DB `CHECK`).
+
+A duplicate-key error (1062) from I1–I3's unique indexes is caught and turned into a readable 400 — the last line of defense when two requests race past the service-layer precondition checks.
+
+**Operations, by where they're triggered:**
+
+*Rider page* (`RiderAssignmentService.AssignAsync` / `EndAsync` / `SwitchAsync`):
+- **Assign Permanent** — slot must be FreeId (with no different existing holder) or Clearance Completed (replaces the former holder); rider must be Full Time, have no active assignment, and not already hold another live slot (I3).
+- **Assign Temp** — slot must be FreeId and not the rider's own home slot; rider must be Part Time, or a Full Time rider whose own home slot is Client Suspended.
+- **End** — ends the rider's active assignment; slot → FreeId (its `riderId` is *not* cleared — see below).
+- **Switch** — End + Assign on the same date, one transaction.
+
+*Client User ID module* (`RiderAssignmentService.SuspendAsync` / `ResumeAsync` / `MarkChurnAsync` / `MarkClearanceCompletedAsync`):
+- **Suspend** (from Active/FreeId/Working Part-Time) — ends any active assignment (reason `ClientSuspended`) and moves the slot to Client Suspended.
+- **Resume** (from Client Suspended) — two-step: `GET .../resume-preview` reports the holder and whether they're currently covering another slot; the caller then confirms whether to **return the holder** (ends their other assignment, reason `ReturnedToHome`, and reinstates them here as PERMANENT → Active) or **just free the slot** → FreeId.
+- **Mark Churn** (from anything but Churn/Clearance Completed) — ends any active assignment (reason `Churn`) and moves the slot to Churn.
+- **Clearance Completed** (from Churn only) — a terminal status change, no rider side effects.
+- **Edit** — `contractExpiry`/`clientId` only, never rider fields.
+- **Delete** — hard delete, rejected (with a message pointing at Churn/Clearance Completed instead) if the slot has any `ClientRiderConfig` history at all.
+
+A slot's `riderId` is **not cleared** by End, Suspend, or Mark Churn — it keeps pointing at the last permanent holder even while the slot is FreeId/Suspended/Churn, which is what lets "Assign Permanent" allow the *same* rider back onto a FreeId slot that still names them, while I3 blocks them from taking a *different* slot until this one is explicitly Churned.
+
+**Rider status side effects** still go through `RiderService.ChangeRiderStatus` (Active on assign, FreeId on end/suspend/churn) — now called with the same DB connection/transaction as the slot and CRC writes, so a partial failure can't leave the rider's status out of sync with the assignment.
+
+**HR Workflow is unchanged and untouched by the rework.** Its final step still calls `POST api/client-user-id` with `riderId` + `startDate`; `RiderAssignmentService.CreateClientUserIdAsync` handles this by creating the slot FreeId and then, in the same transaction, running the PERMANENT-assign write path if a rider was given.
 
 ### 2.4 End-to-end business flows
 
-**The four-verb assignment state machine (`RiderAssignmentService`):**
+**The slot status state machine:**
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Unassigned
-    Unassigned --> PermanentActive: StartPermanentRider<br/>(requires !IsAssigned)
-    PermanentActive --> Unassigned: EndPermanentRider<br/>(requires IsAssigned, same riderId)
-    PermanentActive --> PermanentWithTempCover: StartTemporaryRider<br/>(requires IsAssigned true)
-    PermanentWithTempCover --> PermanentActive: EndTemporaryRider<br/>(requires TempRiderId matches)
-    note right of PermanentActive
-        ClientUserId.RiderId set, IsAssigned=true
-        ClientRiderConfig: one active row (permanent rider)
-    end note
-    note right of PermanentWithTempCover
-        ClientUserId.TempRiderId also set
-        ClientRiderConfig: two active rows
-        (permanent riderId + temp riderId)
-    end note
+    [*] --> FreeId
+    FreeId --> Active: Assign Permanent
+    FreeId --> WorkingPartTime: Assign Temp
+    Active --> FreeId: End
+    WorkingPartTime --> FreeId: End
+    Active --> ClientSuspended: Suspend
+    FreeId --> ClientSuspended: Suspend
+    WorkingPartTime --> ClientSuspended: Suspend
+    ClientSuspended --> Active: Resume (return holder)
+    ClientSuspended --> FreeId: Resume (just free)
+    Active --> Churn: Mark Churn
+    FreeId --> Churn: Mark Churn
+    WorkingPartTime --> Churn: Mark Churn
+    ClientSuspended --> Churn: Mark Churn
+    Churn --> ClearanceCompleted: Clearance Completed
+    ClearanceCompleted --> Active: Assign Permanent (replaces former holder)
 ```
 
-**Direct rider reassignment (`PUT api/client-user-id`) — the fixed flow:**
+**Assign / End / Switch (Rider page) — one transaction per call:**
 
 ```mermaid
 sequenceDiagram
-    participant UI as Client-User-Id screen
-    participant CUC as ClientUserIdController
-    participant CUS as ClientUserIdService.Update
-    participant CRCS as ClientRiderConfigService
-    participant Repo as ClientUserIdRepository
+    participant UI as Rider page
+    participant RC as RiderController
+    participant RAS as RiderAssignmentService
+    participant CRC as ClientRiderConfig
+    participant CUI as ClientUserId
 
-    UI->>CUC: PUT api/client-user-id {clientUserId, riderId, contractExpiry}
-    CUC->>CUS: Update(clientUserId, riderId, contractExpiry)
-    CUS->>CUS: Load existing ClientUserId row
-    CUS->>CRCS: GetClientRiderConfigByClientUserIdAsync(clientUserId)
-    CRCS-->>CUS: existing configs, find active one
-    alt existing.RiderId != new riderId
-        alt an active config exists for a DIFFERENT rider
-            CUS->>CRCS: UpdateEndDateAsync(oldRiderId, clientUserId, now, bypassValidation:true)
-        end
-        opt new riderId provided
-            CUS->>CRCS: AddAsync(newRiderId, clientUserId, now, endDate:null)
-        end
-    end
-    CUS->>Repo: UpdateAsync — ClientUserId.RiderId = new value, ContractExpiry = new value
-    Note over CUS,Repo: ClientRiderConfig and ClientUserId are now kept in sync —<br/>this synchronization is the incident fix.
+    UI->>RC: POST rider/{riderId}/client-assignment {clientUserId, type, startDate}
+    RC->>RAS: AssignAsync
+    RAS->>RAS: validate preconditions (§1.3/§1.4) before opening the transaction
+    RAS->>CRC: insert active row (assignmentType, startDate)
+    RAS->>CUI: update status/isAssigned/tempRiderId
+    RAS->>RAS: write ClientUserIdStatusHistory row
+    RAS->>RAS: RiderService.ChangeRiderStatus(riderId, Active) — same connection/transaction
+    Note over RAS: Switch does End then Assign in this same transaction,<br/>so the rider is never left without an assignment mid-operation.
 ```
 
-**Slot deletion cascade:**
+**Resume — preview then confirm:**
 
 ```mermaid
-flowchart TD
-    A[DeleteClientUserIdAsync id] --> B[Load slot]
-    B --> C{RiderId set?}
-    B --> D{TempRiderId set?}
-    C -- yes --> E[Fetch permanent rider, skipStatusCheck]
-    D -- yes --> F[Fetch temp rider, skipStatusCheck]
-    E --> G{permanent rider<br/>StatusId == Active?}
-    G -- yes --> H[ChangeRiderStatus -> FreeId]
-    F --> I{temp rider<br/>StatusId == Active?}
-    I -- yes --> J[ChangeRiderStatus -> FreeId]
-    E --> K[UpdateEndDateAsync permanent config, bypassValidation]
-    F --> L[UpdateEndDateAsync temp config, bypassValidation]
-    H & J & K & L -.Task.WhenAll, run concurrently.-> M[DeleteAsync the ClientUserId row]
+sequenceDiagram
+    participant UI as Client User ID module
+    participant CUC as ClientUserIdController
+    participant RAS as RiderAssignmentService
+
+    UI->>CUC: GET client-user-id/{id}/resume-preview
+    CUC->>RAS: GetResumePreviewAsync
+    RAS-->>UI: holder riderId/name/status + their current active assignment elsewhere (if any)
+    UI->>UI: user picks "Return holder" or "Just free the ID"
+    UI->>CUC: PUT client-user-id/{id}/resume {date, returnHolder}
+    CUC->>RAS: ResumeAsync
+    alt returnHolder = true and a holder exists
+        RAS->>RAS: end holder's other active assignment (reason ReturnedToHome)
+        RAS->>RAS: assign PERMANENT here → Active
+    else
+        RAS->>RAS: slot -> FreeId, holder untouched
+    end
 ```
 
 ### 2.5 Actors & interactions
@@ -157,17 +185,34 @@ Already covered in full in §2.4 (state machine, direct-update fix, deletion cas
 
 ### 3.4 API & interface documentation
 
+**`ClientUserIdController`** (`api/client-user-id`):
+
 | Method | Route | Delegates to | Notes |
 |---|---|---|---|
-| `GET` | `api/client-user-id/all?details=&free=` | `ClientUserIdService` (3 variants by query flag) | `free=true` → unassigned slots only; `details=true` → joined view |
-| `GET` | `api/client-user-id/{id}` | `GetClientUserIdByIdAsync` | |
-| `POST` | `api/client-user-id` | `RiderAssignmentService.AssignClientUserToRiderAsync` | Creates slot + optional initial `ClientRiderConfig` |
-| `DELETE` | `api/client-user-id/{id}` | `DeleteClientUserIdAsync` | Full cascade (§2.4) |
-| `PUT` | `api/client-user-id/update-rider-assignment` | `RiderAssignmentService` (4-way dispatch on `Type`×`Action`) + `RiderService.ChangeRiderStatus` | The guided state-machine entry point |
-| `PUT` | `api/client-user-id` | `ClientUserIdService.Update` | The direct-edit endpoint, now fixed to sync `ClientRiderConfig` |
-| `GET`/`POST`/`PUT`/`DELETE` | `api/client` | `ClientService` | Plain client CRUD |
+| `GET` | `all?details=&free=` | `ClientUserIdService` | `free=true` → `statusId=5` (FreeId); `details=true` → joined view incl. `statusId`/`statusName`/`assignmentType`/`hasHistory` |
+| `GET` | `{id}` | `GetClientUserIdByIdAsync` | |
+| `GET` | `statuses` | `GetAllStatusesAsync` | Lookup list for the UI |
+| `POST` | `` (create) | `RiderAssignmentService.CreateClientUserIdAsync` | Slot created FreeId; if HR Workflow supplies `riderId`+`startDate`, immediately assigned PERMANENT in the same transaction |
+| `PUT` | `` (update) | `ClientUserIdService.Update` | `contractExpiry`/`clientId` only — no rider fields |
+| `DELETE` | `{id}` | `DeleteClientUserIdAsync` | Rejects with 400 if the slot has any `ClientRiderConfig` history |
+| `PUT` | `{id}/suspend` | `RiderAssignmentService.SuspendAsync` | |
+| `GET` | `{id}/resume-preview` | `GetResumePreviewAsync` | |
+| `PUT` | `{id}/resume` | `ResumeAsync` | `{date, returnHolder}` |
+| `PUT` | `{id}/churn` | `MarkChurnAsync` | |
+| `PUT` | `{id}/clearance-completed` | `MarkClearanceCompletedAsync` | Churn-only precondition |
 
-The **old** `PUT api/client-user-id` handler (pre-fix, calling `UpdateClientUserIdAsync` directly with no `ClientRiderConfig` sync) is left in `ClientUserIdController.cs` as a commented-out block rather than removed.
+**`RiderController`** (`api/rider`), the client-assignment additions:
+
+| Method | Route | Delegates to | Notes |
+|---|---|---|---|
+| `GET` | `{riderId}/eligible-client-user-ids?type=` | `GetEligibleClientUserIdsAsync` | `type` = `PERMANENT`\|`TEMP`; company-scoped like `GetAllFreeClientUserIdsAsync` |
+| `POST` | `{riderId}/client-assignment` | `AssignAsync` | |
+| `PUT` | `{riderId}/client-assignment/end` | `EndAsync` | |
+| `PUT` | `{riderId}/client-assignment/switch` | `SwitchAsync` | |
+
+`GET`/`POST`/`PUT`/`DELETE` on `api/client` (plain `Client` CRUD) is unchanged.
+
+**Removed** in the rework: `PUT api/client-user-id/update-rider-assignment`, `POST api/rider/{riderId}/client`, and the pre-incident-fix `PUT api/client-user-id` handler that §3.14 below describes as "left commented out rather than deleted" — that block, and the four-verb `RiderAssignmentService` it called into, are gone; §3.14's note about it is now history, not current code.
 
 ### 3.5 Database & data model
 
@@ -175,21 +220,30 @@ The **old** `PUT api/client-user-id` handler (pre-fix, calling `UpdateClientUser
 erDiagram
     Client ||--o{ ClientUserId : "issues slots"
     ClientUserId ||--o{ ClientRiderConfig : "assignment history"
+    ClientUserId }o--|| ClientUserIdStatus : "statusId"
+    ClientUserId ||--o{ ClientUserIdStatusHistory : "status changes"
     Rider ||--o{ ClientRiderConfig : "assigned in"
-    Rider ||--o| ClientUserId : "RiderId (permanent)"
-    Rider ||--o| ClientUserId : "TempRiderId (temp cover), SET NULL on rider delete"
+    Rider ||--o| ClientUserId : "riderId (permanent holder)"
+    Rider ||--o| ClientUserId : "tempRiderId (temp cover), SET NULL on rider delete"
+    Rider }o--|| HireType : "hireTypeId (set once, at onboarding)"
 
     Client {
         string clientId PK
         string clientCode UK
         string clientName
     }
+    ClientUserIdStatus {
+        int statusId PK
+        string statusName "Active, Client Suspended, Churn, Clearance Completed, FreeId, Working Part-Time"
+        int statusOrder
+    }
     ClientUserId {
         int id PK
         int clientUserId UK
         string clientId FK
-        string riderId FK "nullable — permanent"
+        string riderId FK "nullable — permanent holder, not cleared by End/Suspend/Churn"
         string tempRiderId FK "nullable — temp cover, ON DELETE SET NULL"
+        int statusId FK "NOT NULL, default 5 (FreeId)"
         datetime contractExpiry
         bool isAssigned
         bool isActive
@@ -201,10 +255,34 @@ erDiagram
         datetime startDate
         datetime endDate "nullable"
         bool isActive
+        enum assignmentType "PERMANENT | TEMP, NOT NULL"
+        string endReason "nullable — Ended/Switched/ClientSuspended/Churn/ReturnedToHome/Vacation/SlotDeleted"
+    }
+    ClientUserIdStatusHistory {
+        int id PK
+        int clientUserId "logical FK"
+        int fromStatusId "nullable — null on first row"
+        int toStatusId
+        datetime effectiveDate
+        string reason
+        string changedBy
+    }
+    HireType {
+        int hireTypeId PK
+        string hireTypeName "Full Time | Part Time"
     }
 ```
 
-Check constraint on `ClientRiderConfig`: `endDate IS NULL OR endDate >= startDate` (from [architecture-overview.md](architecture-overview.md) §4.5) — the one piece of this invariant enforced by the database itself rather than application code.
+**Invariant enforcement**, added in the rework's Phase 4 migration, all via `PERSISTENT` generated columns + unique indexes (kept out of the C# DB models — `DapperHelper.BuildInsert/BuildUpdate` writes every public property, and MariaDB rejects writes to generated columns):
+
+| Invariant | Mechanism |
+|---|---|
+| I1 — one active CRC per rider | `activeRiderKey = IF(isActive=1, riderId, NULL)`, unique index `UX_CRC_ActiveRider` |
+| I2 — one active CRC per slot | `activeSlotKey = IF(isActive=1, clientUserId, NULL)`, unique index `UX_CRC_ActiveSlot` |
+| I3 — one live permanent slot per rider | `liveHolderKey = IF(statusId IN (3,4), NULL, riderId)` on `ClientUserId`, unique index `UX_CUI_LiveHolder` |
+| I6 — `endDate >= startDate` | Pre-existing `CHECK` constraint on `ClientRiderConfig` (unchanged from before the rework) |
+
+A rider or slot with `NULL` in the generated key (inactive CRC, or Churned/Clearance-Completed slot) is exempt from its unique index — MariaDB treats multiple `NULL`s in a unique index as non-conflicting, which is what lets a rider have many *inactive* CRC rows and many *churned* slots simultaneously.
 
 ### 3.6 External integrations
 
@@ -248,6 +326,8 @@ None beyond the platform-wide exception log. No audit log of *who* changed a rid
 - **Leaving the buggy code path commented out rather than deleted** is worth naming as a (likely unintentional) documentation-in-code choice — it preserves the "before" state for anyone reading the file, at the cost of dead code accumulating in a live controller.
 
 ## 4. Risk & improvement analysis
+
+> **Pre-rework section.** Everything below describes the model *before* the September 2026 client-user-id-assignment-rework (§2.3/§2.4/§3.4/§3.5 above are current). Several items this section flags as limitations — no `AssignmentType` on `ClientRiderConfig`, two overlapping "update" verbs, no status audit trail — were exactly what the rework addressed; kept here as the historical record the rework was scoped against, not as open items.
 
 ### 4.1 Edge cases & failure scenarios
 
