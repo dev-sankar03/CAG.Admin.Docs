@@ -62,6 +62,13 @@ A duplicate-key error (1062) from I1–I3's unique indexes is caught and turned 
 - **End** — ends the rider's active assignment; slot → FreeId (its `riderId` is *not* cleared — see below).
 - **Switch** — End + Assign on the same date, one transaction.
 
+*Rider page — employment type* (`RiderAssignmentService.ChangeEmploymentTypeAsync`, `PUT api/rider/{riderId}/employment-type`, with `GET …/employment-type/preview?type=` for the confirm dialog):
+- The business case: a permanent rider's own ID is **Client Suspended** → they're switched to **Part Time** (paid as part-time) and cover a Free ID as TEMP → when the ID is resumed with "Return holder" they go back to it as PERMANENT and are switched back to **Full Time** automatically (in the same Resume transaction).
+- **Full Time → Part Time** — blocked while the rider is working PERMANENT on an ID, and while they still hold a live own ID that isn't Client Suspended (suspend it or mark it Churn first). A Client Suspended own ID is kept — they stay its holder so they can return. An active TEMP assignment continues.
+- **Part Time → Full Time** — an active TEMP assignment continues only if their own ID is Client Suspended; otherwise it is ended (reason `Ended`) on the given date, in the same transaction.
+- Only `Rider.EmploymentType` changes; `HireTypeId` (onboarding type) never does.
+- Payroll is unaffected by this switch: `PayrollRepository.GetDraftPayrollAsync` classifies full/part-time pay from the rider's latest assignment (permanent holder of the slot vs. not), not from `EmploymentType`.
+
 *Client User ID module* (`RiderAssignmentService.SuspendAsync` / `ResumeAsync` / `MarkChurnAsync` / `MarkClearanceCompletedAsync`):
 - **Suspend** (from Active/FreeId/Working Part-Time) — ends any active assignment (reason `ClientSuspended`) and moves the slot to Client Suspended.
 - **Resume** (from Client Suspended) — two-step: `GET .../resume-preview` reports the holder and whether they're currently covering another slot; the caller then confirms whether to **return the holder** (ends their other assignment, reason `ReturnedToHome`, and reinstates them here as PERMANENT → Active) or **just free the slot** → FreeId.

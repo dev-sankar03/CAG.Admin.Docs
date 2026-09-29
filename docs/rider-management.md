@@ -33,12 +33,13 @@ Riders are the workforce the whole platform exists to manage — their documents
 7. **Staff issue/return/exchange property (kit)** to a rider.
 8. **HR/Finance export the full rider roster** to Excel for offline reporting.
 9. **A rider views their own record** — the same `GET api/rider/all` endpoint, filtered server-side to the caller's own `RiderId` when the caller's JWT carries one.
-10. **System auto-transitions riders to Vacation/Vacation-Overdue** — a side effect of every "get all riders" call (see §2.3).
+10. **System auto-transitions riders to Vacation/Vacation-Overdue** — via a background sync the UI polls every 5 minutes (see §2.3).
 
 ### 2.3 Business rules & logic
 
 - **A new rider's employment type determines whether a work permit is required**: `WorkPermitIssued = rider.EmploymentType != "Full Time"` (explicit, string comparison — not enum-backed, so a typo'd or differently-cased employment type value would silently default to "requires a work permit"). `FoodHandlers` is always initialized `false` on creation (explicit).
 - **`Rider.HireTypeId`** (1 Full Time / 2 Part Time) is set once in `AddRiderAsync` from the rider's `EmploymentType` at creation and never updated afterwards — it's the *hire-time* type, kept separate from `EmploymentType` (which can change over a rider's tenure) specifically so [Client & Client-User-ID Mapping](client-clientuserid-mapping.md)'s permanent-vs-temp assignment rules always have an unambiguous "were they hired Full Time or Part Time" fact to check. `PUT api/rider/{id}` cannot change it — it was removed from `RiderUpdateRequest` in the same rework.
+- **Changing `EmploymentType`** goes through `PUT api/rider/{id}/employment-type` (Rider page → Personal → Employment type → Change), never the generic rider update — it's validated against the rider's Client User ID assignments and may end a temporary assignment. Rules and the suspension → part-time → return flow are in [Client & Client-User-ID Mapping](client-clientuserid-mapping.md) §2.3.
 - **A new rider gets an auto-generated login with a predictable default password**: `rider.RiderName[0] + "Welcome3!"` (e.g., a rider named "John" gets password `JWelcome3!`), role hardcoded to `RoleId = 8` (Rider). (explicit, `RiderService.AddRiderAsync`). See §4.3 — this is a concrete, verifiable security weakness, not an inference.
 - **Rider creation and its linked User account are one atomic transaction** — both inserts share a single `IDbConnection`/`IDbTransaction`; a failure in either rolls back both (explicit, see [User Management](user-management.md) §2.4 for the sequence diagram).
 - **Company-scoped visibility is enforced at the repository layer, not just the controller**: `GetRiderByIdAsync`, `GetAllRidersAsync`, `ExportRidersAsync`, etc. all pass `_userAssignedCompanies` (derived from the JWT's `CompanyIds` claim) down into the SQL `WHERE` clause — a rider outside the caller's assigned companies returns `null`/is excluded rather than a 403 (explicit; the controller then maps a `null` single-rider result to an `Unauthorized` exception with message "You can only view riders from companies assigned to you").
@@ -46,7 +47,7 @@ Riders are the workforce the whole platform exists to manage — their documents
 - **A rider can hold at most one active vehicle, and a vehicle can be actively held by at most one rider** — both directions are checked before creating a `RiderVehicleConfig` mapping, each raising `DuplicateEntityExists` (400) on conflict (explicit, `UpdateVehicleAsync`).
 - **Certain status transitions auto-unassign the rider's vehicle**: moving to `FreeId`, `Suspended`, `Terminated`, or `Cancelled` triggers an implicit unassign (`UpdateVehicleAsync(riderId, null, false)`) if an active mapping exists. This rule is implemented **twice, independently** — once inside `UpdateRiderAsync` and again inside `ChangeRiderStatus` (explicit, duplicated code, not shared) — the two entry points being `PUT api/rider/{riderId}` (general update, when `StatusId` is part of the payload) and `PUT api/rider/{riderId}/status` (dedicated status endpoint).
 - **Property issuance currently only tracks `TotalQuantity`, never `AvailableQuantity`** — despite `Property` having both columns, every `AvailableQuantity` adjustment in `AddPropertyAsync`/`UpdatePropertyAsync`/`DeletePropertyAsync` is commented out in the source, and the *live* code instead increments/decrements `TotalQuantity` on issue/return/exchange. [Confirmed by reading both `Property.cs` and all three `RiderService` methods, not inferred] This means issuing a kit item to a rider **increases** `Property.TotalQuantity` rather than decreasing an available count — the opposite of what a "total owned inventory" figure should do — and no stock-insufficiency check is enforced anywhere (the `if (property.AvailableQuantity < dto.Quantity) throw ...` guard is present in the source only as a comment). See §4.1 and [Property & Inventory](property-inventory-management.md) §4.1 for the same defect from that module's side.
-- **`GetAllRidersAsync` has a write side effect on every call**: before returning data, it fetches all riders currently on `"Vacation"` and `"Vacation Overdue"` leave status (from [Leave Management](leave-management.md)) and bulk-`UPDATE`s their `Rider.StatusId` to match — meaning a `GET` request performs two `UPDATE` statements as a side effect on every single invocation (explicit). This keeps rider status in sync with leave state without a scheduled job, at the cost of violating the usual expectation that `GET` requests are read-only/idempotent-safe-to-repeat-freely.
+- **Vacation status sync is its own endpoint** (`POST api/rider/vacation-status/sync` → `RiderService.SyncVacationStatusesAsync`): it fetches riders currently on `"Vacation"` / `"Vacation Overdue"` leave (from [Leave Management](leave-management.md)) and bulk-`UPDATE`s `Rider.StatusId`, skipping riders already in that status, and returns how many changed. The UI calls it on load and every 5 minutes in the background (`components/background/vacation-status-sync.tsx`, mounted in `AppProviders` for users with Rider access) and refreshes rider data once after the first run. Until September 2026 this ran as a write side effect inside every `GET api/rider/all` and `GET api/rider/paged`; those are now read-only.
 - **A rider's own login sees only their own record**: if the caller's JWT carries a `RiderId` claim (i.e., they logged in as a rider-linked account), `GetAllRidersAsync` filters the full result set down to `RiderId == _currentUser.RiderId` in C#, after the full company-scoped query already ran — [Inferred] this is a self-service view reusing the staff "all riders" endpoint and query rather than a dedicated single-record self endpoint, so a rider's browser still receives (and the server still executes) the full multi-table join for the whole company roster before filtering client-side-of-the-service-layer down to one row.
 - **`GetTopRidersAsync` is unimplemented** — `throw new NotImplementedException()` (explicit). If [Dashboard & Reporting](dashboard-reporting.md) calls this path, it fails with a 500.
 
@@ -116,7 +117,7 @@ sequenceDiagram
 | Rider (self, via linked User account) | Read-only, filtered to own record, via the same endpoint staff use |
 | [User Management](user-management.md) | Downstream — receives the auto-created login on rider creation |
 | [HR Workflow & Onboarding](hr-workflow-onboarding.md) | Upstream gate — certain statuses block full rider record access until workflow tasks complete |
-| [Leave Management](leave-management.md) | Upstream — vacation status feeds the side-effecting bulk status update in `GetAllRidersAsync` |
+| [Leave Management](leave-management.md) | Upstream — vacation status feeds the bulk status update in `SyncVacationStatusesAsync` |
 | [Client & Client-User-ID Mapping](client-clientuserid-mapping.md) | Peer — since the September 2026 rework, all client-assignment control lives on the Rider page (Assign/End/Switch, via `RiderAssignmentService`) rather than a `RiderService` method; see that module's doc for the current model. `RiderService.UpdateClientUserIdAsync` (referenced by older versions of this doc) no longer exists. |
 | [Property & Inventory](property-inventory-management.md) | Peer — `PropertyService` is called directly from `RiderService` for kit issuance |
 | [Vehicle Management](vehicle-management.md) | Peer — `VehicleService` is called directly for assignment side effects |
@@ -174,7 +175,8 @@ This is a **second, independent reflection-based update mechanism**, parallel to
 
 | Method | Route | Purpose |
 |---|---|---|
-| `GET` | `api/rider/all` | Company-scoped list; self-filtered if caller is a rider; has vacation-status side effect (§2.3) |
+| `GET` | `api/rider/all` | Company-scoped list; self-filtered if caller is a rider |
+| `POST` | `api/rider/vacation-status/sync` | Vacation / Vacation Overdue status sync, polled by the UI every 5 min; returns `{vacation, vacationOverdue}` counts (§2.3) |
 | `GET` | `api/rider/all/with-company` | List with company info attached |
 | `GET` | `api/rider/company/{companyId}` | List for one company |
 | `GET` | `api/rider/{riderId}?skipStatusCheck=` | Single rider; blocks on Onboarding/LocalTransfer/VisaProcess unless bypassed |
@@ -249,7 +251,7 @@ No module-specific configuration beyond the shared MySQL connection string.
 
 ### 3.9 Background jobs & workers
 
-None — the vacation-status sync that would conventionally be a scheduled job is instead executed inline on every `GetAllRidersAsync` call (§2.3).
+No server-side scheduler — the vacation-status sync is triggered by the UI's 5-minute background poll of `POST api/rider/vacation-status/sync` (§2.3), so it only runs while someone with Rider access has the app open.
 
 ### 3.10 Events & messaging
 
@@ -299,7 +301,6 @@ None beyond the platform-wide FTP exception log.
 
 ### 4.4 Performance considerations
 
-- `GetAllRidersAsync`'s per-call vacation-status bulk `UPDATE` (§2.3) runs on every list fetch, for every caller, adding two extra round-trips (query + bulk update ×2) to what should be a pure read.
 - The underlying `GetAllRidersAsync` query is an 8-table LEFT JOIN with no pagination (see [architecture-overview.md](architecture-overview.md) §7.1) — at 1,778 riders today this is manageable; it is the first join in the system likely to need pagination as the roster grows.
 - `ExportRidersAsync` builds a 70+ column, all-rows workbook in memory (`MemoryStream`) synchronously within the request — no streaming, no background job.
 
@@ -327,6 +328,5 @@ None beyond the platform-wide FTP exception log.
 - Three rider statuses (Onboarding, LocalTransfer, VisaProcess) block full record access pending HR workflow completion.
 - Property/kit issuance mutates the wrong inventory counter (`TotalQuantity` instead of `AvailableQuantity`) with all stock-sufficiency checks commented out — confirmed, not inferred.
 - Vehicle assignment correctly enforces a strict one-rider-one-vehicle invariant in both directions.
-- `GetAllRidersAsync` performs write side effects (bulk vacation-status sync) on every read call.
 - Validation runs on create but not on update; deletion is a hard delete orchestrated through [HR Workflow & Onboarding](hr-workflow-onboarding.md) (which clears `HrWorkflow` rows first) after a controller-level guard against existing client associations — but still fails against any of the other 12 `RESTRICT`-linked tables with rider history.
 - `GetTopRidersAsync` is an unimplemented stub that will 500 if invoked.
