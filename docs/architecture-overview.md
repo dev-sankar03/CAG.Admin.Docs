@@ -282,7 +282,7 @@ This section is the payoff of reading all 20 module docs together: patterns that
 
 ### 5.1 Authorization exists on a spectrum from "absent" to "well-implemented," and the spectrum correlates with data sensitivity in the wrong direction
 
-No module in the platform enforces role-based access control — `[Authorize]` (authentication only) is the sole gate everywhere, confirmed identically in every module doc's §3.11/§4.3. Beneath that shared ceiling, **company-scope enforcement** (restricting a query to the caller's assigned companies) varies enormously by module, and the variance is not explained by sensitivity:
+No module in the platform enforces role-based access control — `[Authorize]` (authentication only) is the sole gate everywhere, confirmed identically in every module doc's §3.11/§4.3. *(One narrow exception since 2026-10-01: the rider complaint endpoints, `api/rider/{riderId}/complaints…`, check the caller's role and `CAG_RIDER` module permission inside `RiderComplaintService` — see [Rider Management](rider-management.md) §3.11.)* Beneath that shared ceiling, **company-scope enforcement** (restricting a query to the caller's assigned companies) varies enormously by module, and the variance is not explained by sensitivity:
 
 | Scoping quality | Modules | Consequence |
 |---|---|---|
@@ -394,7 +394,7 @@ graph LR
 - **JWT signing secrets (`AppSettings:Token` / UI `JWT_SECRET`) are identical across dev, QA, and prod** in the config files inspected — a token minted against the dev database is valid against production.
 - **Containers**: the API ships a multi-stage `Dockerfile` (`mcr.microsoft.com/dotnet/sdk:10.0-alpine` → `aspnet:10.0-alpine`, port 8080); the UI ships its own (`node:22-alpine`, port 3000, selecting `.env.qa`/`.env.prod` via an `APP_ENV` build arg (`--build-arg APP_ENV=qa|prod`); if omitted it falls through to the committed default `.env`).
 - **No CI/CD pipeline moves code between these environments** — `.github/workflows/` is empty in the API repo, absent in the UI repo. How a build reaches QA or production is not recorded in either repository.
-- **Credentials for all of the above (MySQL, FTP, JWT signing keys, NextAuth secret) are committed to source control** in `appsettings.development.json`, `appsettings.production.json`, and the UI's `.env`/`.env.qa`/`.env.prod` files.
+- **Credentials for all of the above (MySQL, FTP, JWT signing keys, NextAuth secret) are committed to source control** in `appsettings.Development.json`, `appsettings.Production.json`, and the UI's `.env`/`.env.qa`/`.env.prod` files.
 
 ---
 

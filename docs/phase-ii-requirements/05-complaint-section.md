@@ -1,5 +1,7 @@
 # 05 — Complaint Section (Milestone 1)
 
+> **Status: implemented 2026-10-01** (tracker row CS-01) — see [§4 Decisions & implementation](#4-decisions--implementation-2026-10-01). Sections 1–3 are the original analysis, kept for the reasoning.
+
 > Source: `CAG_Phase_II.docx` → *Complaint Section (Milestone 1)*
 > Modules touched: Rider detail, (possibly) Helpdesk, a new comments/notes store.
 > Related docs: [helpdesk](../implementation-impact-analysis.md),
@@ -67,3 +69,34 @@
   confidentiality constraint.
 - **Q:** Does a complaint need to notify anyone (HR, supervisor)?
   💡 Out of scope unless stated; note as a possible follow-up (no notification infra exists today).
+
+## 4. Decisions & implementation (2026-10-01)
+
+**The ask:** "create a complaint section under the rider more details page … and I need to maintain the history as well."
+
+**Decisions** — the owner's answers to the questions above:
+
+| Question | Decision |
+|---|---|
+| What is a complaint? | A **plain comment**: the text, the date and time, who wrote it and in which role. No status, category, severity or attachment. |
+| What does "history" cover? | **The list itself.** Every complaint stays listed, newest first; nothing is edited or deleted. No per-change audit log (there is nothing to change). |
+| Who can view / add / change? | **Anyone who can open the rider page** (module `CAG_RIDER`, at least View) can view and add. Only **Admin, Operational Manager and HR** can *void* a mistaken entry. Riders never see complaints — enforced on the API, not only hidden in the UI. |
+| Where on the page? | A new **Complaints** tab on the More details page (`/Rider/{riderId}/details`) with a count badge. The page is still tabbed — the "remove tabs / scrolling layout" item ([08](08-rider-more-details.md)) hasn't been done — so this tab moves into the scrolling layout when that happens. |
+| What is the "department"? | The author's **role at the moment of writing**, stored on the row (there is no department column anywhere). |
+
+**Assumed, not asked** (say if any is wrong): no notifications, no attachments, no effect on rider status or payroll, nothing to import, text 1–2,000 characters, a void needs a reason (≤ 500 characters).
+
+**What was built**
+
+- **DB** — `RiderComplaint` ([`2026-10-01_RiderComplaint.sql`](../../../CAG.Admin.API/Database/Migrations/2026-10-01_RiderComplaint.sql), utf8mb4, FK to `Rider`). Applied to Dev 2026-10-01; QA and PROD still need the script, run **before** the API build.
+- **API** — `RiderComplaintController` (`GET`/`POST api/rider/{riderId}/complaints`, `PUT …/{id}/void`) → `RiderComplaintService` → `RiderComplaintRepository`. Access rules are enforced in the service: Rider role and rider-linked users refused (403), `CAG_RIDER` ≥ View required, rider must be in the caller's companies (404 otherwise), void limited to Admin / Operational Manager / HR. Details in [rider-management.md](../rider-management.md) §2.3 and §3.11.
+- **UI** — `components/details/rider/complaints-tab.tsx`: an add box, then newest-first rows (name · role · date and time, then the text). A voided entry stays visible, struck through, with who voided it, when and why. Reuses `SideCard`; colour is not used for anything.
+
+**Where it differs from the suggestions in §2–§3**
+
+- Named `RiderComplaint`, not `RiderComment`.
+- It does **not** clone `LeaveRequestComment` wholesale: that module's delete endpoint has no owner or role check (any logged-in user can delete any comment by id) and its table is latin1. Here there is no delete at all — a wrong entry is voided.
+- "All authenticated users can view" was tightened: riders are excluded and the module permission is required.
+- No edit, status or category (the "start with plain comments" option in §3 was taken).
+
+**Verification** — against the Dev database with a throw-away harness (not committed): 22 checks on the real service for role / permission / company access, validation and void rules, plus a rolled-back SQL test (insert, list, void, double-void guard, Arabic round trip). The API starts with dependency injection validated and the three routes answer 401 without a token. The UI was type-checked and linted; it has **not** been exercised in a browser (that needs a login).

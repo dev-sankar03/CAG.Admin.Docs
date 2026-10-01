@@ -39,7 +39,9 @@ CAG's riders deliver under client-issued app accounts (e.g., a food-delivery pla
 
 **The data model, precisely:**
 
-- `ClientUserId` is a **slot**: one row per client-issued account. It carries `StatusId` (`ClientUserIdStatus`: 1 Active, 2 Client Suspended, 3 Churn, 4 Clearance Completed, 5 FreeId, 6 Working Part-Time), plus the denormalized `RiderId` (permanent holder), `TempRiderId` (temp cover), `IsAssigned`, and `ContractExpiry`. `StatusId` is never written directly by a caller — it's always derived by `RiderAssignmentService` from whether the slot has an active `ClientRiderConfig` and that row's `AssignmentType`.
+- `ClientUserId` is a **slot**: one row per client-issued account. It carries `StatusId` (`ClientUserIdStatus`: 1 Active, 2 Client Suspended, 3 Churn, 4 Clearance Completed, 5 Free ID, 6 ID Issued for Part-Time), plus the denormalized `RiderId` (permanent holder), `TempRiderId` (temp cover), `IsAssigned`, and `ContractExpiry`. `StatusId` is never written directly by a caller — it's always derived by `RiderAssignmentService` from whether the slot has an active `ClientRiderConfig` and that row's `AssignmentType`.
+- **Names (2026-10-01):** the client's wording is *Free ID* and *ID Issued for Part-Time*; the master table still says `FreeId` / `Working Part-Time` until `Database/Migrations/2026-10-01_ClientUserIdStatus_Names.sql` is run (the C# enum member stays `WorkingPartTime`). The UI shows its own names either way. **Vacation is not a Client rider status** — it is a Company rider status only, set by Leave Management (Phase II RM-05 / RM-06, decided 2026-10-01).
+- **Status list in the UI (2026-10-01):** the rider pages' *Client rider status → Change* menu (edit mode only) and the Client User ID flyout's *Client rider status* section list all six statuses. Only Suspend, Resume (→ Active, or → Free ID), Mark Churn and Clearance Completed are user actions and are clickable when allowed from the current status; Active, Free ID and ID Issued for Part-Time are set by the assignment operations (assign / end / assign TEMP) and are shown greyed out with the reason. Rules: `getStatusChangeActionKeys` in `components/details/client-user-id/client-user-id-status-rules.ts`.
 - `ClientRiderConfig` is a **per-assignment-period history** row: `(RiderId, ClientUserId, StartDate, EndDate, IsActive, AssignmentType, EndReason)`. `AssignmentType` (`PERMANENT`/`TEMP`) makes history self-describing — the single biggest gap in the prior model (§4.2 below). `EndReason` is one of `Ended`, `Switched`, `ClientSuspended`, `Churn`, `ReturnedToHome`, `Vacation`, `SlotDeleted`.
 - `ClientUserIdStatusHistory` is new: one row per status transition (`fromStatusId`, `toStatusId`, `effectiveDate`, `reason`, `changedBy`), giving an audit trail status changes previously had none of (§3.13's old gap).
 - `Rider.HireTypeId` (1 Full Time / 2 Part Time) is now set once at onboarding and never updated — `Rider.EmploymentType` remains the *current* type, which can diverge from hire type over a rider's tenure.
@@ -48,7 +50,7 @@ CAG's riders deliver under client-issued app accounts (e.g., a food-delivery pla
 
 - I1/I2 — a rider has at most one active `ClientRiderConfig`; a slot has at most one active `ClientRiderConfig`. (`UX_CRC_ActiveRider`, `UX_CRC_ActiveSlot`)
 - I3 — a rider is the permanent holder (`ClientUserId.riderId`) of at most one slot whose status isn't Churn/Clearance Completed. (`UX_CUI_LiveHolder`)
-- I4 — status ∈ {Active, Working Part-Time} ⇔ an active CRC exists ⇔ `isAssigned = 1`; `tempRiderId` is set ⇔ status = Working Part-Time.
+- I4 — status ∈ {Active, ID Issued for Part-Time} ⇔ an active CRC exists ⇔ `isAssigned = 1`; `tempRiderId` is set ⇔ status = ID Issued for Part-Time.
 - I5 — a new assignment period must start on/after the latest ended period, per rider and per slot (no overlap on new writes; historical overlaps from before the rework are left as-is).
 - I6 — dates can't be in the future; `endDate ≥ startDate` (DB `CHECK`).
 
@@ -70,7 +72,7 @@ A duplicate-key error (1062) from I1–I3's unique indexes is caught and turned 
 - Payroll is unaffected by this switch: `PayrollRepository.GetDraftPayrollAsync` classifies full/part-time pay from the rider's latest assignment (permanent holder of the slot vs. not), not from `EmploymentType`.
 
 *Client User ID module* (`RiderAssignmentService.SuspendAsync` / `ResumeAsync` / `MarkChurnAsync` / `MarkClearanceCompletedAsync`):
-- **Suspend** (from Active/FreeId/Working Part-Time) — ends any active assignment (reason `ClientSuspended`) and moves the slot to Client Suspended.
+- **Suspend** (from Active/FreeId/ID Issued for Part-Time) — ends any active assignment (reason `ClientSuspended`) and moves the slot to Client Suspended.
 - **Resume** (from Client Suspended) — two-step: `GET .../resume-preview` reports the holder and whether they're currently covering another slot; the caller then confirms whether to **return the holder** (ends their other assignment, reason `ReturnedToHome`, and reinstates them here as PERMANENT → Active) or **just free the slot** → FreeId.
 - **Mark Churn** (from anything but Churn/Clearance Completed) — ends any active assignment (reason `Churn`) and moves the slot to Churn.
 - **Clearance Completed** (from Churn only) — a terminal status change, no rider side effects.
@@ -241,7 +243,7 @@ erDiagram
     }
     ClientUserIdStatus {
         int statusId PK
-        string statusName "Active, Client Suspended, Churn, Clearance Completed, FreeId, Working Part-Time"
+        string statusName "Active, Client Suspended, Churn, Clearance Completed, Free ID, ID Issued for Part-Time"
         int statusOrder
     }
     ClientUserId {

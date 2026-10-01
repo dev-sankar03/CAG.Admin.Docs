@@ -30,7 +30,7 @@ Work through in order — several build on the state left by the previous one.
 
 4. **Assign the same Full Time rider as TEMP on another FreeId slot.**
    Rider page → Assign → Temporary. This should be **allowed** because their home slot (step 3) is suspended.
-   Expect: 200, the other slot → Working Part-Time.
+   Expect: 200, the other slot → ID Issued for Part-Time.
 
 5. **Try assigning a Full Time rider whose home slot is *not* suspended as TEMP.** ✅ PASS (Session A, 2026-09-29)
    Pick a different Full Time rider whose home slot (if any) is Active/FreeId, attempt a Temp assign.
@@ -44,7 +44,7 @@ Work through in order — several build on the state left by the previous one.
    Expect: slot → FreeId; the (if any) holder is untouched — no rider-status or CRC change for them.
 
 8. [x] **Assign a Part Time rider as TEMP, then End.** — PASS, see `test-run/results-B.md`.
-   Expect: slot → Working Part-Time → (End) → FreeId; rider → Active → FreeId.
+   Expect: slot → ID Issued for Part-Time → (End) → FreeId; rider → Active → FreeId.
 
 9. [x] **Churn → Clearance Completed → assign a new Full Time rider as PERMANENT.** — PASS, see `test-run/results-B.md`.
    Mark Churn on a slot with an active assignment (ends it, rider → FreeId, slot → Churn) → Clearance Completed → then Assign Permanent a *different* Full Time rider to that same slot.
@@ -57,7 +57,7 @@ Work through in order — several build on the state left by the previous one.
     Expect: slot created Active with a PERMANENT CRC, exactly as before the rework — this path (`POST api/client-user-id` with `riderId`+`startDate`) is untouched HR code hitting the rewritten `CreateClientUserIdAsync`.
 
 12. [x] **Add Rider as Part Time, picking a Client User ID in the Documents step.** — PASS, see `test-run/results-B.md`.
-    Expect: TEMP CRC created, slot → Working Part-Time, and the slot's `contractExpiry` is **unchanged** by this flow (it only sets the assignment, not the contract).
+    Expect: TEMP CRC created, slot → ID Issued for Part-Time, and the slot's `contractExpiry` is **unchanged** by this flow (it only sets the assignment, not the contract).
 
 13. **Order import for a month where a slot changed rider mid-month.**
     Upload a rider-order file for a `clientUserId` that had two different riders holding it (one after the other) during the target month.
@@ -74,6 +74,6 @@ Work through in order — several build on the state left by the previous one.
 - [x] Client User ID grid: Status badge colors are readable and distinct; Current Type column shows "—" for a FreeId/Churn/Clearance-Completed slot with no active assignment. — PASS (Session A; clearance badge text clipped, see results-A.md 3c)
 - [x] Client User ID grid: Rider ID cells link to `/Rider/{riderId}` and open the correct rider. — PASS (Session A)
 - [x] Client User ID grid: Delete action is hidden (not just disabled) on a slot with history. — PASS (Session B, see test-run/results-B.md)
-- [x] Rider page "Current client" card: type badge (Permanent/Temporary) and slot status render correctly for both an Active and a Working Part-Time assignment. — PASS (Session A, see test-run/results-A.md)
+- [x] Rider page "Current client" card: type badge (Permanent/Temporary) and slot status render correctly for both an Active and a ID Issued for Part-Time assignment. — PASS (Session A, see test-run/results-A.md)
 - [x] Rider page client history list: newly-added Type and End reason details show up correctly on ended rows. — PASS (Session A, see test-run/results-A.md)
 - [~] Permission gating: a user without `CAG_RIDER.EDIT` sees no Assign/Switch/End/Suspend/Resume/Churn/Clearance/Delete actions anywhere in this flow, only read access. — UI PASS; API does NOT enforce EDIT on client-user-id create/suspend (Session A, see results-A.md 3e)

@@ -101,7 +101,7 @@ Grids are AG Grid: column definitions live in `constants/grid-props/<feature>.ts
 
 `CAG.Admin.DB/` is a **read-only reference snapshot** of the MySQL database (`CAG_Schema.sql` DDL, plus CSV exports of tables, columns, keys, indexes, stored procedures, collations, and an `.erd` diagram). There is no migration framework: schema changes are applied to the MySQL server by hand and these files must be re-exported to stay current, so check their dates before trusting them. Naming is `PascalCase` tables with `camelCase` columns, matching the C# DBModels.
 
-Environments: `CAG_Admin_Dev` (connection in `appsettings.development.json`) and `CAG_Admin_PROD` (`appsettings.production.json`), both on the same MySQL host; QA may exist too.
+Environments: `CAG_Admin_Dev` (connection in `appsettings.Development.json`) and `CAG_Admin_PROD` (`appsettings.Production.json`), both on the same MySQL host; QA may exist too.
 
 ### Every DB change must ship as a script in the repo
 
@@ -116,7 +116,7 @@ Any change to the database — DDL (tables, columns, indexes, procedures) **or**
 
 ## Gotchas
 
-- **Secrets are committed.** `CAG.Admin.API/CAG.Admin.API/appsettings.development.json` holds a live MySQL connection string, the JWT signing key, and FTP credentials; `CAG.Admin.UI/.env`, `.env.qa`, and `.env.prod` hold `JWT_SECRET` and `NEXTAUTH_SECRET`. Follow the existing pattern only where unavoidable, never add new secrets, and never echo these values into terminal output or new files.
+- **Secrets are committed.** `CAG.Admin.API/CAG.Admin.API/appsettings.Development.json` holds a live MySQL connection string, the JWT signing key, and FTP credentials; `CAG.Admin.UI/.env`, `.env.qa`, and `.env.prod` hold `JWT_SECRET` and `NEXTAUTH_SECRET`. Follow the existing pattern only where unavoidable, never add new secrets, and never echo these values into terminal output or new files.
 - `CAG.Admin.UI/.env` sets `NODE_ENV=production` even for local dev. That flips the axios `https.Agent` (self-signed API certs get rejected) and marks the session cookie `secure`. If local login or API calls fail with a TLS error, check this first.
 - Allowed CORS origins are hardcoded in `StringConstants.apiAllowedOrigins`, not in appsettings.
 - Stray files at the API repo root (`temp_backup.cs`, `ANALYSIS_*.md`, `IMPACT_ANALYSIS_*.md`, `QUICK_REFERENCE_*.md`) are one-off investigation notes, not part of the build.

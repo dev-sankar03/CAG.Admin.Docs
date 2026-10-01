@@ -145,3 +145,20 @@ company-paid onboarding costs recorded before HR completion).
 3. Vacation package: **#3 + #6** with [09](09-vacation-management.md).
 4. Foundational: **#7** (first real server-side authorisation) and **#8** (onboarding expenses, with
    [04](04-rider-expense.md)).
+
+---
+
+## Implementation status (2026-10-01)
+
+How each item above was actually built — details live in the module docs linked on each line. Item numbers are this file's; the requirement sheet numbers them OC-01…OC-09 because it splits #5 into OC-05 (inline edit) and OC-06 (bulk update), so from there its numbers run one ahead (this file's #6 = OC-07, #7 = OC-08, #8 = OC-09).
+
+| # | Item | State | Where |
+|---|---|---|---|
+| 1 | Source filter on Expiring Documents | Done earlier — client-side filter on the dashboard card | [dashboard-reporting](../dashboard-reporting.md) |
+| 2 | Vehicle colour | Done — `Vehicle.color` (free text, optional); script `2026-10-01_VehicleColor.sql` must run before the API deploy | [vehicle-management](../vehicle-management.md) |
+| 3 | No auto-unassign on Vacation | Done earlier — Vacation was never in the unassign set (`FreeId`/`Suspended`/`Terminated`/`Cancelled` only) | [rider-management](../rider-management.md) |
+| 4 | Add Rider: documents lost + false "Failed" | Done — the Civil ID upload sent its expiry as `DD/MM/YYYY`; each step after the rider is created is now reported separately | [request-lifecycle](../request-lifecycle.md) |
+| 5 | Contract-expiry alerts: inline edit + bulk update | Done — pencil + multi-select in the alert modal, `PUT api/dashboard/compliance/expiry`, refreshes in place | [dashboard-reporting](../dashboard-reporting.md) |
+| 6 | Vacation → status automation | Done — new "Close vacation" action (`Closed` status) returns the rider to Active; the Overdue list was empty (matched only status 9) and is fixed; script `2026-10-01_LeaveRequestClosedStatus.sql` | [leave-management](../leave-management.md) |
+| 7 | Role-restricted statuses | Done — `RiderStatusPolicy` (Admin + Operational Manager only), UI hides the four statuses for other roles | [rider-management](../rider-management.md), [authentication-authorization](../authentication-authorization.md) |
+| 8 | Expenses / down payments during hiring | Partly — onboarding riders now open and expenses are tagged `Onboarding`; adding an entry needs the rider to have a company. Down payments: see the open question in the hand-over notes | [rider-management](../rider-management.md) |

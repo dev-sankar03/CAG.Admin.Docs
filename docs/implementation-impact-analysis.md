@@ -127,6 +127,8 @@ This is the single largest source of cross-cutting risk in the whole list.
 |---|---|---|
 | All departments should be able to add comments on the rider | New `RiderComment` table/service/controller (copy `LeaveRequestComment` pattern, swap `LeaveRequestId`→`RiderId`); new tab on Rider detail page reusing `RemarksTab`'s layout and `ROLE_BADGE_STYLES` | `C1`, `C2` |
 
+> **Status 2026-10-01: built** as `RiderComplaint` (not `RiderComment`) — append-only comments, voidable by Admin / Operational Manager / HR, with the access rules enforced on the API. It deliberately does *not* copy `LeaveRequestComment`'s unchecked delete or `RemarksTab`'s role-colour badges. Decisions and what was built: [phase-ii-requirements/05-complaint-section.md](phase-ii-requirements/05-complaint-section.md) §4.
+
 ### 2.7 Add Two Order Values (Milestone 1)
 
 **Current implementation:** `OrderValueService`/`OrderValueRepository`, model `OrderValue.cs` = `{SingleOrderValue, DoubleOrderValue}` keyed by `BatchVehicleCategoryId`. No discrete "Order Type" taxonomy exists — UI (`(pages)/Finance/Order-Values/index.tsx`) tabs by Vehicle Category only.

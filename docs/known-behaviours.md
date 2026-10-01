@@ -20,6 +20,7 @@ Severity is a documentation judgement, not a formal triage:
 | 🔴 | **Module permissions are not enforced server-side** on most endpoints — only `[Authorize]` (authenticated). A user without `CAG_RIDER.EDIT` is blocked in the UI but can still call `PUT /api/rider/{id}` directly. | [cross-cutting](authentication-authorization.md) |
 | 🔴 | **Default rider password is derivable** — `"<FirstInitial>Welcome3!"`, identical scheme for every rider, no forced reset on first login. | [rider-onboarding](hr-workflow-onboarding.md) |
 | 🔴 | **`GET /api/document/all` ignores company scoping** — returns every entity of a source regardless of the caller's `CompanyIds`. Every other list endpoint is scoped. | [document-expiry](document-management.md) |
+| 🔴 | **`GET /api/rider/{id}/performance/all` ignores company scoping** — `GetMontlyRiderPerformanceAsync` runs `GetMonthlyRiderPerformance(riderId)` with no `CompanyIds` filter, so any signed-in user who knows a `riderId` gets that rider's payroll expenses, orders and attendance. (`GET …/{id}/dashboard` checks scope in its own SQL, and the Excel export `…/performance/export` reads the rider through the scoped path first.) | [rider-management](rider-management.md) |
 | 🟠 | **Rider company reassignment skips scope checks** — `PUT /api/rider/{id}/company` doesn't verify the target company is in the caller's scope (unlike `AddVehicle`, which does). | [rider-management](rider-management.md) |
 | 🟠 | **Vehicle update skips scope re-check** — `PUT /api/vehicle/update` can move a vehicle to another company via a changed `CompanyId`. | [vehicle-management](vehicle-management.md) |
 | 🟠 | **Credentials committed in plaintext** in `appsettings.*.json` (DB + FTP). | [architecture-overview](architecture-overview.md) |
@@ -33,7 +34,7 @@ Severity is a documentation judgement, not a formal triage:
 | 🟠 | **`ApiBaseController.BadRequest/UnAuthorized` return HTTP 200** with the status only in the body (`{statusCode: 400, error}`). The UI must inspect the payload, not the HTTP status. | [cross-cutting](authentication-authorization.md) |
 | 🟠 | **Malformed-JWT errors bypass the exception handler** — `AuthenticationMiddleware` runs before `ExceptionHandlingMiddleware`, so a decode failure is an unhandled 500, not a 401. | [architecture-overview](architecture-overview.md) |
 | 🟠 | **Duplicate-vehicle-number on create returns 200**, not 409 — the exception is built with `statusCode: OK`. The update path correctly returns 400 for the same condition. | [vehicle-management](vehicle-management.md) |
-| 🟠 | **Unhandled exceptions leak `error.Message`** verbatim in the response body. | [cross-cutting](authentication-authorization.md) |
+| ✅ | ~~**Unhandled exceptions leak `error.Message`** verbatim in the response body.~~ Fixed 2026-10-01: generic message + `reference` (correlation id); `AdminAPIException` and service-layer Validation/NotFound/BusinessRule messages still pass through. | [cross-cutting](authentication-authorization.md) |
 | 🟡 | **200-with-error-body reads as success** to axios/`unwrap` — resolves with `data` undefined rather than rejecting. | [ui-data-layer](frontend-application-shell.md) |
 
 ## Data integrity (non-transactional / drift)
@@ -53,7 +54,7 @@ Severity is a documentation judgement, not a formal triage:
 |---|---|---|
 | 🔴 | **Listing riders performs writes.** `GET /api/rider/all` and `/paged` bulk-update rider statuses from leave data before returning — non-idempotent GETs, unsafe on a read replica. | [rider-management](rider-management.md) |
 | 🟠 | **Rider status exit auto-unassigns the vehicle** — `FreeId`/`Suspended`/`Terminated`/`Cancelled` release the vehicle via both `ChangeRiderStatus` and `UpdateRiderAsync`. (Intended, but easy to miss.) | [rider-vehicle-assignment](rider-management.md) |
-| 🟠 | **Rider detail is blocked mid-workflow** — `Onboarding`/`VisaProcess`/`LocalTransfer` return 403 unless `skipStatusCheck=true`. A freshly created rider "disappears" until the workflow finishes. | [rider-onboarding](hr-workflow-onboarding.md) |
+| 🟢 | **Rider detail used to be blocked mid-workflow** — `Onboarding`/`VisaProcess`/`LocalTransfer` returned 403 unless `skipStatusCheck=true`. Since Phase II OC-09 (2026-10-01) `GET api/rider/{id}` always skips the gate and the Rider list opens these riders; the service-level gate remains for rider-order import and the performance export. | [rider-management](rider-management.md) |
 
 ## Correctness bugs (wrong result)
 
@@ -66,6 +67,7 @@ Severity is a documentation judgement, not a formal triage:
 | 🟠 | **Vehicle image partial upload is silent** — a failed file is skipped with `continue`; only an all-fail batch reports an error. | [vehicle-images](vehicle-management.md) |
 | 🟠 | **Reflection-based rider update can't clear a field** — null means "don't touch", so no column can be set back to NULL through `PUT /api/rider/{id}`. | [rider-management](rider-management.md) |
 | 🟠 | **Rider expense PUT is a full replace** — omitted fields are written as 0, not preserved. | [rider-management](rider-management.md) |
+| 🟠 | **Performance page attendance has no month** — `AttendanceDto.Month` is a public field, which `System.Text.Json` doesn't serialize, so `performance.attendances[].month` never reaches the UI (labels show "—"; the *Current month* range hides every row). The Performance tab's *Earnings* / *Client rating* cards also read `totalEarnings` / `rating`, which the API never returns. | [rider-management](rider-management.md) |
 | 🟠 | **`["documenttypes"]` query key ignores its argument** — switching header codes can serve a stale type list. | [ui-data-layer](frontend-application-shell.md) |
 | 🟡 | **`"Firstname 0"` owner name** — `(ownerLastName || +"")` coerces `""` to `0`. | [partner-company](partner-company-management.md) |
 | 🟡 | **Company-logo mutation callbacks reference `resetLogo` without calling it** — invalidation relies on the hook instead. | [partner-company](partner-company-management.md) |

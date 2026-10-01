@@ -22,6 +22,7 @@ Staff need a single at-a-glance view of the business across companies — how ma
 
 1. **Staff land on the dashboard** and see global totals with 30-day deltas (companies, vehicles, orders).
 2. **Staff view compliance items expiring soon** across vehicles (daftar/registration), riders (work permits), and clients (contract expiry) in one combined list.
+   - **Editing expiry from the alert list** (Phase II OC-05 / OC-06, 2026-10-01): the Rider page's alert modal (Work Permit / Client Contract / Daftar expiry) has a pencil on each row and a checkbox column; picking rows shows "Update expiry (n)", and both open one popup that sets a single new date. `PUT api/dashboard/compliance/expiry` takes `{ sourceType: "Client"|"Rider"|"Vehicle", items: [{ sourceId, expiryDate }] }` (max 500) and writes where each alert reads from — `ClientUserId.contractExpiry`, `Rider.workPermitExpiryDate`, or the vehicle's `VEHICLE_DFT` `DocumentTypeExpiry` row — scoped to the **caller's own** companies (`_currentUser.CompanyIds`, not the optional `companyIds` the dashboard filters by). It answers `{ updated, notUpdated: [sourceId…] }`; rows are independent (not one transaction), so a row outside the caller's reach is reported and the rest are still saved. The list refreshes in place after saving (the shared `Grid` gained optional `getRowId` / row-selection props, so scroll position, search and filter survive). UI gate: Rider edit for contract and work permit, Vehicle edit for the Daftar.
 3. **Staff view workforce breakdown** — availability, vacation status, rider status distribution.
 4. **Staff view finance summary** — traffic fines and EMI totals, with drill-down detail views.
 5. **Staff view expiring documents and vehicles** within a configurable day window.
@@ -113,6 +114,7 @@ All 12 endpoints accept `companyIds` as an optional query-string list with **no 
 |---|---|---|
 | `GET` | `api/dashboard/overview` | Mixed date-window inconsistency (§2.3) |
 | `GET` | `api/dashboard/compliance/expiring` | Combines vehicle/rider/client expiry in one call |
+| `PUT` | `api/dashboard/compliance/expiry` | Inline / bulk expiry edit from a compliance alert list (Phase II OC-05 / OC-06) — see below |
 | `GET` | `api/dashboard/riders/breakdown` | Delegates to [Rider Management](rider-management.md) |
 | `GET` | `api/dashboard/workforce` | Availability + vacation + status, 3 sequential awaits (not parallelized, unlike `GetGlobalOverviewAsync`) |
 | `GET` | `api/dashboard/finance` | Traffic fines + EMI |

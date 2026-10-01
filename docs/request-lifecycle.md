@@ -187,6 +187,8 @@ AddRiderModal.handleFinalSubmit
               UserService.RegisterAsync(user, conn, tx)
             COMMIT  (rollback + rethrow on any failure)
         → returns riderId
+
+What the wizard does after `POST /api/rider` (Phase II OC-04, 2026-10-01): the rider record is the only step whose failure means "Failed to add rider" (the toast then carries the API's own message when it sent one). Everything after it — the part-time Civil ID upload (`POST /api/document/upload`), the Client User ID assignment and the HR workflow start — runs as a separate step and is reported separately: if any of them fails the toast says "Rider RDxxxxxx was added, but these did not save: …" and the modal still closes. The modal no longer closes on a fixed 500 ms timer; it stays busy until every step has finished. Root cause of the lost document and the false "Failed" popup: the upload's `files[0].expiryDate` was sent in the form's `DD/MM/YYYY`, which ASP.NET binds as an invariant-culture date — rejected (400) for days above 12, silently flipped to MM/DD otherwise — so the upload failed *after* the rider already existed. It now sends `YYYY-MM-DD`. Full-time riders have no document upload in the wizard (passport and licence are number + expiry only); documents for them are added on the rider's Documents tab.
 ```
 
 ---

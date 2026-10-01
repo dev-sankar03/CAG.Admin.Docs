@@ -60,6 +60,7 @@ All UI changes verified via `npx tsc --noEmit` (clean, aside from an unrelated c
 | **P1, P13** (part of) Rider Performance rebuild | New dedicated Rider **Dashboard** route at `/Rider/[riderId]` (KPI hero row, `RiderPageHeader`, deep-links to a "View Full Details" page) — the old 9-tab detail page moved to `/Rider/[riderId]/details`, with a matching `RolePageCode` entry added | 🔄 Route split (P13) done; header/KPI content only partially matches doc's exact field list (§2.4) |
 | **P3, P8** (partial) | New dashboard has `ExpenseSummaryCard`, `AttendanceOverviewCard`, `VehicleEmiCard`, `LeaveCard`, `AlertsCard`, `RecentDocumentsCard` — covers some but not all of doc's Finance/Attendance/Company-Assets asks | 🔄 |
 | **D1, D2** Documents UI + mandatory-expiry | `document-tab.tsx` heavily rewritten (361 lines); new `isMandatory` check now considers doc-type flag *and* whether an expiry already exists, plus an inline "edit expiry" action | 🔄 Needs a check against the specific Selfie-type complaint before marking D2 done |
+| **C1, C2** Complaint section *(2026-10-01)* | `RiderComplaint` table (`2026-10-01_RiderComplaint.sql`, applied to Dev), `RiderComplaintController`/`Service`/`Repository` (`api/rider/{riderId}/complaints`, access enforced server-side), and a **Complaints** tab on the rider More details page (`components/details/rider/complaints-tab.tsx`). Append-only; a wrong entry is voided by Admin / Operational Manager / HR | ✅ — QA/PROD need the script before the API build; UI not exercised in a browser |
 | **RD1** Rider More Details — "remove tabs, scrolling layout" | `tab-bar.tsx` gained a **vertical grouped** orientation (opposite direction from "remove tabs") | ❓ The new Dashboard/`/details` split may be superseding this requirement rather than implementing it literally — worth confirming intent before building RD1 as originally spec'd |
 
 ---
@@ -74,7 +75,6 @@ Grouped by epic; see the analysis doc's §2/§7 for full task descriptions.
 | Rider Mgmt — Company/Client Status split | R1, R2, R3, R4, R5 *(confirmed: `RiderStatuses` enum unchanged, no `ClientStatus` field on `Client.cs`)* |
 | Onboarding | O1, O2 |
 | Rider Performance rebuild (remainder) | P2, P4, P5, P6, P9 *(decision, not build)*, P11, P12 |
-| Complaint | C1, C2 *(confirmed: no `RiderComment` anywhere)* |
 | Order Values | V1, V2, V3 |
 | Part-Time / Free ID module | PT1, PT2, PT3, PT4, PT5 |
 | Vacation Management (remainder) | VM1, VM4 |
@@ -83,7 +83,7 @@ Grouped by epic; see the analysis doc's §2/§7 for full task descriptions.
 | Other Changes | OC2 *(confirmed: no `Color` field on `Vehicle` — needs a schema change)*, OC4, OC5 *(bulk-update half only — see below)* |
 | Shareholders (new module) | SH1–SH5 |
 
-✅ Moved to "Done this session": T1, T2, T4, T7, VM3, VM6, OC1, OC5 (single-record half), SC1–SC5 (pending DB script on QA/prod).
+✅ Moved to "Done this session": T1, T2, T4, T7, VM3, VM6, OC1, OC5 (single-record half), SC1–SC5 (pending DB script on QA/prod), C1–C2 (2026-10-01; DB script pending on QA/prod).
 🔍 Investigated, nothing to change: OC8 (see below — the described gate doesn't currently exist in the code).
 
 **OC3** (verify vacation-vehicle-unassignment claim): re-confirmed — `Vacation` (statusId 9) is still not present in either unassignment-trigger call site in `RiderService.cs`. No code defect found; still recommend the DBA check for a DB-level trigger per the original analysis (Q9). No code change made.
@@ -98,4 +98,4 @@ Grouped by epic; see the analysis doc's §2/§7 for full task descriptions.
 
 OC8 is no longer in this list — investigated this session and found nothing to change (see above).
 
-**Still blocked on a DB schema change (needs sign-off before any DDL, per analysis doc §5 — no migration tooling, and the dev DB connection string is committed in `appsettings.development.json`):** OC2 (`Vehicle.Color`), T9 (`Company.CarQuota`/`BikeQuota`), R1–R5 (`Client.ClientStatus` etc.), PT1–PT5, CE1–CE5, MA1–MA8, SH1–SH5. T8 (Finance Summary merge) is additionally blocked behind CE1. All carry the dependency-graph ordering the analysis doc lays out in §9 (most run through R3 first).
+**Still blocked on a DB schema change (needs sign-off before any DDL, per analysis doc §5 — no migration tooling, and the dev DB connection string is committed in `appsettings.Development.json`):** OC2 (`Vehicle.Color`), T9 (`Company.CarQuota`/`BikeQuota`), R1–R5 (`Client.ClientStatus` etc.), PT1–PT5, CE1–CE5, MA1–MA8, SH1–SH5. T8 (Finance Summary merge) is additionally blocked behind CE1. All carry the dependency-graph ordering the analysis doc lays out in §9 (most run through R3 first).

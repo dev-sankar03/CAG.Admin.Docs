@@ -65,6 +65,10 @@
   (keyword-matched, per `rider-page-header.tsx`), under `RAIDER_DOC`
   ([documents](../document-management.md)) — not a hardcoded "Selfie" type.
 
+### Export to Excel (RP-15) — implemented
+
+`GET api/rider/{riderId}/performance/export` returns an `.xlsx` with one sheet per section of the page above: **Summary** (1 Rider Information incl. selfie thumbnail, 2 Client Information, 3 the four Finance cards, 11 Payroll Calculation, plus the activity and leave summaries), **Payroll**, **Earnings Ledger** (4), **Expense Ledger** (5), **Incentives** (6), **Orders** (7), **Attendance** (8), **Assets** (10), **Sales Cash**, **Leave** and **Passport Requests**. Section 9 (Performance) has no sheet of its own — as the requirement suggests, the Earnings Ledger and Orders sheets cover it — and section 12 (Finance Dashboard) is out of scope. The page's document-expiry alerts and recent-documents cards are not exported. The button is on the performance page (`/Rider/{riderId}`) and on the Performance tab of the details page. Technical details and the access rules: [rider-management §3.4](../rider-management.md).
+
 ## 3. Open Questions & Suggestions
 
 ### UI-side

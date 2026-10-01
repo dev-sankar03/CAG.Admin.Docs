@@ -45,6 +45,8 @@
 | 5 | FreeId | auto | No active CRC; available |
 | 6 | Working Part-Time | auto | Temporary rider working on it (active CRC, type TEMP) |
 
+> **Update 2026-10-01:** displayed as **ID Issued for Part-Time** (the client's wording; status 5 as **Free ID**) — see `2026-10-01_ClientUserIdStatus_Names.sql`. Vacation is deliberately not a Client rider status. The rest of this plan keeps the original names.
+
 `assignmentType`: `ENUM('PERMANENT','TEMP')`
 `endReason` (VARCHAR(30)): `Ended`, `Switched`, `ClientSuspended`, `Churn`, `ReturnedToHome`, `Vacation`, `SlotDeleted`
 

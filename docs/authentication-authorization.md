@@ -213,8 +213,8 @@ The important subtlety: by the time a controller action runs, the *bearer token 
 
 | Method | Route | Auth | Request | Response |
 |---|---|---|---|---|
-| `POST` | `api/Auth/login` | none (`AuthController` has no `[Authorize]`, no `[AllowAnonymous]`) | `LoginCredentialModel { Email, Password, RememberMe }` | `Success(token)` (200) or `UnAuthorized(error)` (401); unhandled exceptions caught locally and returned as `BadRequest(ex.Message)` |
-| `POST` | `api/Auth/logout` | none (see §4.3) | — | `SuccessWithNoData()` or `BadRequest(ex.Message)` |
+| `POST` | `api/Auth/login` | none (`AuthController` has no `[Authorize]`, no `[AllowAnonymous]`) | `LoginCredentialModel { Email, Password, RememberMe }` | `Success(token)` (200) or `UnAuthorized(error)` (401); unexpected exceptions go to `ExceptionHandlingMiddleware` (500, generic message + `reference`) |
+| `POST` | `api/Auth/logout` | none (see §4.3) | — | `SuccessWithNoData()`; unexpected exceptions go to `ExceptionHandlingMiddleware` |
 | `GET` | `api/permissions/getall` | `[Authorize]` (authenticated only) | — | `List<ModulePermissionModel>` — one row per non-Admin role, 11 module columns |
 | `GET` | `api/permissions/getbyroleId` | `[Authorize]` | `?roleId=` | `List<ModulePermissionsByRole>` (`ModuleCode`, `Permission`) |
 | `PUT` | `api/permissions/update` | `[Authorize]` | `List<RolePermUpdateRequestModel> { rolePermissionId, permission }` | `SuccessWithNoData()` or `BadRequest("Update Failed ,Try Again")` if not all rows updated |
@@ -308,7 +308,7 @@ This section *is* the module; see §2.3, §3.3, and §4.3 rather than duplicatin
 ### 3.12 Validation & error handling
 
 - `LoginCredentialModel` has no `[Required]`/DataAnnotations; an empty email/password reaches `UserService.LoginAsync` and simply fails the `GetByAsync`/`BCrypt.Verify` steps, falling through to the generic "Invalid email or password" message.
-- Both `AuthController` actions wrap their body in `try/catch` and return `BadRequest(ex.Message)` — this **bypasses `ExceptionHandlingMiddleware` entirely** for this controller, so exceptions here are never logged to FTP and their raw `.Message` (which can include database or null-reference detail) is returned directly to an unauthenticated caller.
+- `AuthController` has no local `try/catch` (since 2026-10-01). User-facing login failures come back as `LoginResponseModel.Error` → `UnAuthorized(error)`; anything unexpected propagates to `ExceptionHandlingMiddleware`, which logs the full exception and returns a generic message with a `reference` (the correlation id, also sent as `X-Correlation-ID`) — never the raw `.Message`.
 - `RolePermissionService.UpdateModulePermissions` counts successful row-updates vs. requested count and returns `false` (→ `BadRequest`) on any mismatch, but performs no rollback — partial updates to the permission matrix are possible and are not transactional.
 
 ### 3.13 Logging & observability
@@ -341,9 +341,11 @@ No structured logging in this module. The only trace of a login attempt is `User
 
 **No server-side role/permission enforcement.** Every business-module endpoint requires only `[Authorize]` (valid signature + not expired) — never a specific role or module claim. `PUT api/permissions/update` itself is reachable by *any* authenticated user of *any* role, including a Rider account, not just Admins — the entire permission system that gates the UI can be rewritten by anyone who can log in at all. This is the single highest-impact finding in the whole platform and is **cross-cutting**, not unique to this module — see [architecture-overview.md](architecture-overview.md) §5.
 
+**Narrow exceptions (role checks the API does make itself):** `RiderComplaintService` (complaints, 2026-10-01 — see [rider-management](rider-management.md)), `LeaveRequestService.CloseAsync` (a rider-linked user can't close a vacation) and — since Phase II OC-08 — `RiderStatusPolicy` in `CAG.Admin.API.Application/Validator`: only role 1 (Admin) and role 2 (Operational Manager) may set a rider to Akhama Transfer, Terminated, Suspended or Cancelled (403 otherwise), applied on `PUT api/rider/{id}`, `PUT api/rider/{id}/status`, `POST api/rider` and the HR workflow's final step. It is a plain role-id check, not a module permission, and the UI mirrors it with `useCanSetRestrictedRiderStatus`.
+
 **Shared, committed signing secrets.** `AppSettings:Token`/`JWT_SECRET` are identical across dev, QA, and prod in the files inspected, and are committed to source control (see [architecture-overview.md](architecture-overview.md)). A token minted in dev is valid in production.
 
-**Exception detail leakage.** `AuthController`'s local `catch (Exception ex) → BadRequest(ex.Message)` can surface internal exception text (including, on a DB connectivity failure, connection-related detail) to an unauthenticated caller.
+**Exception detail leakage — fixed 2026-10-01.** `AuthController` used to return `BadRequest(ex.Message)`, and the middleware echoed `error.Message` for any unexpected exception, so internal text reached the sign-in page (e.g. "Value cannot be null. (Parameter 's')" when `AppSettings:Token` was missing on QA). Unexpected exceptions now return a generic message + `reference`; only `AdminAPIException` and the service-layer `ValidationException`/`NotFoundException`/`BusinessRuleException` messages are passed through. The UI's `handleApiError` also falls back to a generic message when there is no response or no `message`, and NextAuth `authorize` hides `jwt.verify` failures (`JWT_SECRET` mismatch) behind a generic sign-in error.
 
 **No brute-force protection**, as noted in §4.2 — combined with verbose distinct error messages ("deactivated" vs. "access denied" vs. "invalid credentials"), an attacker can enumerate which emails exist and their account state.
 

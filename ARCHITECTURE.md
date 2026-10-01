@@ -661,7 +661,7 @@ The UI holds **no database driver** and never reaches MySQL or FTP directly — 
 
 ### 8.1 API configuration
 
-`appsettings.json` (shared), `appsettings.development.json`, `appsettings.production.json`:
+`appsettings.json` (shared), `appsettings.Development.json`, `appsettings.Production.json`:
 
 | Section | Purpose |
 |---|---|
@@ -696,7 +696,7 @@ All three env files carry **identical** `JWT_SECRET` and `NEXTAUTH_SECRET` value
 
 Committed to source control, in plaintext:
 
-- MySQL host, username, and password (dev and prod, same credentials) — `appsettings.development.json`, `appsettings.production.json`
+- MySQL host, username, and password (dev and prod, same credentials) — `appsettings.Development.json`, `appsettings.Production.json`
 - JWT signing key — `AppSettings:Token` and, duplicated, `JWT_SECRET` in three `.env` files
 - `NEXTAUTH_SECRET` — three `.env` files
 - FTP host, username, password — both appsettings files
