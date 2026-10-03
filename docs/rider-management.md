@@ -189,7 +189,7 @@ This is a **second, independent reflection-based update mechanism**, parallel to
 | `DELETE` | `api/rider/{riderId}` | See §3.12 — not a simple delete; orchestrated through [HR Workflow & Onboarding](hr-workflow-onboarding.md) |
 | `PUT` | `api/rider/{riderId}/company` | Reassign company |
 | `POST` | `api/rider/{riderId}/client` | Reassign client (delegates to `ClientRiderConfigService`) |
-| `GET` | `api/rider/export` | Excel export, 70+ columns across rider/company/bank/client/vehicle/EMI |
+| `GET` | `api/rider/export` | Excel export, 70+ columns across rider/company/bank/client/vehicle/EMI. The **Documents** column (2026-10-03) lists the document *types* the rider holds, comma-separated and alphabetical, once per type however many files — e.g. `Civil ID, Passport Files, Selfie` (no dates). It replaced the old "Document Details" column, which printed one line per file (file name, type, expiry) and so was mostly file names |
 | `POST`/`PUT`/`DELETE` | `api/rider/{riderId}/property[...]` | Issue/adjust/return kit property |
 | `PUT` | `api/rider/{riderId}/status` | Dedicated status transition (own vehicle-unassign duplicate logic) |
 | `POST` | `api/rider/{riderId}/vehicle/{vehicleId}/{isAssign}` | Assign/unassign vehicle |
