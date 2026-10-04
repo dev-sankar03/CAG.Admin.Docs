@@ -381,3 +381,6 @@ No role check on any endpoint in this module (platform-wide finding); slot reass
 - A four-verb orchestrated state machine (`RiderAssignmentService`) is the "safe" path for permanent/temporary assignment changes; a narrower direct-edit path still exists in parallel and is where a *future* version of the same bug class is most likely to reappear if a new caller bypasses it.
 - Slot deletion cascades correctly and concurrently across rider status, config history, and the slot record itself.
 - No enforcement of contract expiry; no role-based access control, consistent with the rest of the platform.
+
+- **Contract expiry bulk import** (2026-10-04): `POST api/client-user-id/contract-expiry/import` (`ClientUserIdService.ImportContractExpiryAsync`), UI *Import Contract Expiry* on the Client User ID page (edit permission). First sheet, header row with *Client User ID* and *Contract Expiry* columns (falls back to A/B); Excel dates or DD/MM/YYYY text. Valid rows are updated one by one, bad rows (non-numeric ID, bad date, duplicate, ID not found / outside the user's companies) are skipped and returned in `Errors`; IDs already on that date count as Unchanged.
+- **Client User ID list search** (2026-10-04): the Full Time / Part Time Rider ID columns now have a value (not just a rendered link), so the search box matches rider IDs.
