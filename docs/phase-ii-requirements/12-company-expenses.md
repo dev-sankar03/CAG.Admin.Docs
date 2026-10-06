@@ -3,6 +3,7 @@
 > Source: `CAG_Phase_II.docx` → *Company Expenses Module (Milestone 2)*
 > Modules touched: **New Company Expenses module**, Dashboard/Finance Summary
 > ([01](01-main-dashboard.md)).
+> **Status: built 2026-10-06 as a module of its own (`CAG_COMPANY_EXPENSE`) — see [§4](#4-decisions--implementation-2026-10-06). DB script on Dev only; UI not yet browser-tested.**
 > Related docs: [expense migration (rider)](../database-access-layer.md),
 > [data-access masters](../database-access-layer.md), [dataviz](../implementation-impact-analysis.md).
 
@@ -84,3 +85,104 @@ Expenses, Monthly Expense Trend. **Use company code, not company name.**
   💡 Yes, seed those, but mark them editable/deactivatable (master, not hardcoded — the doc insists).
 - **Q:** Who can enter/approve company expenses (role gating)?
   💡 Restrict to Admin/Ops/Finance roles; supervisors view-only. Confirm.
+
+## 4. Decisions & implementation (2026-10-06)
+
+A first version of this module was built on 2026-09-29 as a screen under Finance (entry form, list,
+category table without a screen, and the category pie on the main dashboard). On 2026-10-06 it was
+completed against the requirement and made **a module of its own**, as decided for Mandoob
+Activities the same day. Tracker rows CE-01 … CE-09.
+
+### 4.1 Decisions
+
+| Question | What was built |
+|---|---|
+| Where it lives | **Its own module `CAG_COMPANY_EXPENSE`** — own sidebar group, own row in Admin → Permissions — no longer part of Finance. The old link `/Finance/Company-Expense` redirects to `/Company-Expenses`. |
+| Who has access | Each role starts with **the level it had on Finance** (the migration copies it), so nobody gained or lost access by the move: on Dev that is Admin, Operational Manager, Coordinator = Edit; HR, Reporter = View; the rest No Access. Editable in Admin → Permissions. |
+| Date (CE-01) | One required **Date** on the entry screen (defaults to today, any date can be entered). The month an expense counts in is always that date's month (`expenseMonth`, set by the API). The first version asked for a month and an optional bill date instead; the separate month picker is gone. |
+| Payment Method (CE-02) | Cash / Bank / Online, required. A separate enum from Sales Cash's Cash / Online. Expenses entered before the column existed have none and show "—"; editing one asks for it. |
+| Attachment (CE-03) | "Upload bill" through the existing **Document pipeline** (`api/document/*`), `source = "CompanyExpense"`, `sourceId = <expense id>`, `documentTypeId = 43`; files under `CAG_Admin/{env}/CompanyExpense/{id}/`. Several files per expense. Deleting an expense also removes its bills (best effort — see §4.3). |
+| Added By / Modified By (CE-04) | Name, date and time of both are shown when an expense is opened; Added By is a list column, Modified By / Modified At are hidden columns. |
+| Categories master (CE-05) | Screen to add, rename and activate / deactivate. A category in use is deactivated, never removed. All 16 categories from the client's list are seeded. |
+| Analysis Dashboard (CE-07, CE-08) | A page inside the module; the main dashboard's Finance Summary is unchanged and reads the same table. |
+| Company code (CE-09) | Lists, filters and the dashboard show the company **code**; a company without a code (one inactive company on Dev) shows its name. |
+| Amounts | KWD with 2 decimals, as everywhere else in this system (`DECIMAL(12,2)`); the API rounds to 2. |
+| Bulk import, approval | Not built (not in the requirement). |
+
+### 4.2 Database — `CAG.Admin.API/Database/Migrations/2026-10-06_CompanyExpenseModule.sql`
+
+Builds on `2026-09-29_DashboardRevamp.sql` (which created the two tables).
+
+- `CompanyExpense.paymentMethod` VARCHAR(10), nullable, stored **by name** (`CompanyExpensePaymentMethod`).
+- Every expense gets a date: rows without one are set to the first day of their `expenseMonth`.
+  The column **stays nullable** on purpose — the script is additive, so the API build that is live
+  when it runs keeps working until the new build is deployed. The API requires the date.
+- Index `IX_CompanyExpense_Date`.
+- The 7 categories of the client's list that were not seeded (Mobile Bills, Staff Welfare, Visa
+  Expenses, Municipality, Software Subscription, Insurance, Bank Charges).
+- `PageModule` `CAG_COMPANY_EXPENSE` and one `RolePermission` row per role that has a Finance row,
+  with the same level.
+- Re-runnable. **Applied to Dev (`CAG_Admin_Dev`) on 2026-10-06; not yet on QA or PROD.** Users only
+  get the new module at their next sign-in.
+
+### 4.3 API — `api/company-expense` (`CompanyExpenseController` → `CompanyExpenseService`)
+
+| Method & route | Purpose | Needs |
+|---|---|---|
+| `GET category/getall?includeInactive=` | Categories by name, each with its expense count | View |
+| `POST category` · `PUT category/{id}` | Add / rename / activate-deactivate (duplicate name → 409) | Edit |
+| `GET getall?companyIds=&fromMonth=&toMonth=` | Expenses, newest date first, with bill count and both audit names | View |
+| `GET analysis?companyIds=&year=&today=` | One year summed per company × month × category, plus the totals for `today` and its month | View |
+| `POST` · `PUT {id}` · `DELETE {id}` | Create / update / delete an expense | Edit |
+
+- **Access is enforced in the service** (View / Edit on `CAG_COMPANY_EXPENSE`, read live from
+  `RolePermission`; rider users always refused) and every query is limited to the caller's
+  `CompanyIds` — the first version only required a signed-in user.
+- `today` comes from the browser because the server only knows UTC; "today" counts expenses dated
+  that day, "this month" the ones booked in that month.
+- The analysis groups by `expenseMonth`, the same month the main dashboard uses, so both agree.
+- On update, an unchanged category that has since been deactivated is not re-validated.
+- Deleting an expense first removes its bills through the document service. That is best effort:
+  the file server is not transactional with the database, so a bill that cannot be removed is left
+  behind as an orphan `Document` row and the expense is still deleted.
+- Config: `FilePath:CompanyExpenseFiles` in `appsettings.json`.
+
+### 4.4 UI — `CAG.Admin.UI`
+
+| Route | What it is |
+|---|---|
+| `/Company-Expenses` | Expense List: month picker, search, Filter (Company, Category, Payment Method), entries count and total, CSV export, **Add Expense**. Columns: Date, Company (code), Category, Amount, Payment Method, Reference No, Remarks, Added By, Bill; Modified By / At and Added At are hidden but available. The bill count opens the files. |
+| Add / Edit Expense | Date, Company, Expense Category, Amount, Payment Method, Reference No, Remarks, bill upload, and — when editing — Added by / Modified by with date and time. |
+| `/Company-Expenses/Categories` | Expense Categories master. |
+| `/Company-Expenses/Analysis` | Analysis Dashboard. Cards: Total Expenses (Today), Total Expenses (This Month, with the change against last month), Company-wise and Category-wise (the highest of the selected period). Below: **Company-wise Monthly Expenses** (table, company code × month with totals), **Category-wise Expenses** (ranked bars with amount and share) and **Monthly Expense Trend** (line). Filters: Company, Month, Year. |
+
+The category breakdown is a ranked bar list rather than the sample's donut: with sixteen categories
+a pie cannot be read, and the list shows the same amounts and percentages as the sample's table.
+
+Wiring: `ModuleCodes.companyExpenses`, three `RolePageCode` entries, the sidebar group, a **Company
+Expenses** row in Admin → Permissions (`ModulePermissionModel.CompanyExpenses`), and the redirect in
+`next.config.ts`. The Categories screen and Mandoob's Activity Types screen share one component,
+`components/master/name-master-page.tsx`. Code: `(pages)/Company-Expenses/**`,
+`components/company-expense/expense-bills.tsx`, `constants/grid-props/company-expense.tsx`,
+`hooks/react-query/company-expense.tsx`, `http-client/company-expense.api.ts`.
+
+The entry form converts the picked date to `YYYY-MM-DD` before saving. The first version sent the
+date picker's `DD/MM/YYYY` text, which the API cannot read.
+
+### 4.5 Verified / not verified
+
+- API: 60 service-level checks against Dev with fake callers per role (access per role and company,
+  category master, validation, rounding, month derived from the date, bill counts, a row saved
+  without date or payment method, the analysis figures, delete with and without a reachable file
+  server) — all passed, and the test rows were removed. The API boots with the new routes and
+  answers 401 without a token.
+- UI: `tsc`, ESLint and `next build` pass, and the old link answers with a redirect to the new
+  route. **Not exercised in a browser** (needs a login) — the screens, the bill upload and the
+  charts still need a manual pass.
+
+### 4.6 Still open
+
+- Client confirmation of the single Date (instead of month + bill date) and of the starting
+  permission levels.
+- The sample shows Export buttons on the dashboard tables; only the Expense List exports today.
+- Net Profit on the main dashboard still comes from `api/dashboard/finance/overview` — unchanged.

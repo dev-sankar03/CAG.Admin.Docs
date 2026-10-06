@@ -210,6 +210,8 @@ Good news: two of the four requested changes are **already implemented**.
 
 ### 2.13 Company Expenses Module (Milestone 2)
 
+> **Status 2026-10-06: built** (CE1–CE5; tracker CE-01 … CE-09) and moved out of Finance into its own module `CAG_COMPANY_EXPENSE`: payment method, bill upload, Added / Modified by, Expense Categories master with all 16 categories, and the Analysis Dashboard. API `api/company-expense`, UI `/Company-Expenses`. Decisions, routes and what is still unverified: [12-company-expenses.md §4](phase-ii-requirements/12-company-expenses.md#4-decisions--implementation-2026-10-06). The paragraph below describes the state before any of it existed.
+
 **Current implementation:** Does not exist (grep negative for "CompanyExpense"/"ExpenseCategory"). Rider Expense's 11 hardcoded columns are the only "expense" concept in the schema today, and — importantly — they are **fixed columns, not a category master table**, so this new module cannot simply copy that pattern; it needs a proper category-master design as the document explicitly requests.
 
 | Doc requirement | Finding | Task(s) |
@@ -220,6 +222,8 @@ Good news: two of the four requested changes are **already implemented**.
 | Analysis Dashboard (Today/This-Month totals, company-wise, category-wise, monthly trend chart; "use company code not name") | New aggregation endpoints + dashboard cards/charts reusing `components/dashboard/*` toolkit (`StatCard`, `GenericPieChart`, `chart-card.tsx`) | `CE5` |
 
 ### 2.14 Mandoop Activities (Milestone 1 core / Milestone 2 Follow-up Dashboard)
+
+> **Status 2026-10-06: built** (MA1–MA8, including the Milestone 2 Follow-up Dashboard) as `MandoobActivity` / `MandoobActivityType` / `MandoobActivityFollowUp`, API `api/mandoob-activity`, UI `/Mandoob-Activities`, new role `Mandoob` (9) and module `CAG_MANDOOB`. Q8 was settled as assumed (a role on the existing Users table). Decisions, routes and what is still unverified: [13-mandoob-activities.md §4](phase-ii-requirements/13-mandoob-activities.md#4-decisions--implementation-2026-10-06). The paragraph below describes the state before that.
 
 **Current implementation:** Does not exist at all — confirmed zero matches for "Mandoob"/"Activity" as a module in either repo, and no `ModuleCodes` entry. Fully greenfield full-stack module, structurally similar to `LeaveRequest` (simple entity + comments-style follow-ups) but needs its own master data (Activity Types) and its own dashboard.
 

@@ -82,7 +82,7 @@ A duplicate-key error (1062) from I1–I3's unique indexes is caught and turned 
 
 A slot's `riderId` is **not cleared** by End, Suspend, or Mark Churn — it keeps pointing at the last permanent holder even while the slot is FreeId/Suspended/Churn, which is what lets "Assign Permanent" allow the *same* rider back onto a FreeId slot that still names them, while I3 blocks them from taking a *different* slot until this one is explicitly Churned.
 
-**Rider status side effects** still go through `RiderService.ChangeRiderStatus` (Active on assign, FreeId on end/suspend/churn) — now called with the same DB connection/transaction as the slot and CRC writes, so a partial failure can't leave the rider's status out of sync with the assignment.
+**Rider status side effects** go through `RiderService.ChangeRiderStatus` — **Active on assign only**, called with the same DB connection/transaction as the slot and CRC writes. **Ending an assignment no longer touches the rider's company status** (2026-10-06, bug sheet #7): End, Release, Suspend and Mark Churn used to set the rider to the company status Free ID as well, so the same event showed up under both Client Rider Status and Company Rider Status. "Free ID" is now the slot's status only; the rider stays what they were (normally Active). What those operations still do to the rider is release their vehicle — `RiderService.ReleaseVehicleAsync`, called after the assignment transaction has committed.
 
 **HR Workflow is unchanged and untouched by the rework.** Its final step still calls `POST api/client-user-id` with `riderId` + `startDate`; `RiderAssignmentService.CreateClientUserIdAsync` handles this by creating the slot FreeId and then, in the same transaction, running the PERMANENT-assign write path if a rider was given.
 
@@ -157,7 +157,7 @@ sequenceDiagram
 | Actor | Role |
 |---|---|
 | Ops/Coordinator staff | Manage slot assignments day-to-day (start/end permanent/temp cover) |
-| [Rider Management](rider-management.md) | Downstream of status side effects (`Active`/`FreeId` toggled from here) |
+| [Rider Management](rider-management.md) | Downstream of side effects: rider set `Active` on assign; vehicle released when an assignment ends (the company status is not changed on end — see above) |
 | [Rider Orders & Batch Billing](rider-orders-batch-billing.md) | Reads `ClientRiderConfig` as the source of truth for order attribution — the module the original incident actually broke |
 
 ## 3. Technical perspective

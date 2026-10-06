@@ -235,3 +235,9 @@ Nothing notable at current volumes (145 `LeaveRequest` rows per [architecture-ov
 - The rider leave-detail view is enriched with sales-cash and vehicle-EMI data pulled directly from those modules' repositories, bypassing their service layers.
 - This module's vacation-status output is consumed by [Rider Management](rider-management.md) as an automatic, inline (non-scheduled) status-sync side effect on every rider list fetch.
 - Deletion is unguarded and will throw on any request with existing comments.
+
+## Changes 2026-10-06 (reopened bugs)
+
+- **The rider's status now shows straight away** (bug sheet #8 — "changes only after going back and opening the next window"). The API already recomputed the rider's Vacation / Vacation Overdue / Active status inside the leave-request call; the UI just didn't re-read it. `useAddLeaveRequests` / `useUpdateLeaveRequests` invalidated only the leave lists, so rider lists, the rider page and the dashboard kept their cached status until the page was left and reopened. All four leave mutations (add, update, close, delete) now call `refreshAfterLeaveChange` (`hooks/react-query/leave-management.tsx`), which invalidates `["leave-requests"]`, `["rider"]` and `["dashboard"]`.
+- **Background sync** (`components/background/vacation-status-sync.tsx`, every 5 minutes): a poll that actually moved a rider (its result counts are > 0 — a vacation started, or one ran past its end date) now triggers the same refresh. Before, later polls updated the database only.
+- **Overdue rule tightened** (`LeaveRequestRepository.GetAllRidersInOverdueAsync` and the second statement of `RecomputeRiderVacationStatusAsync`): a rider is not moved to Vacation Overdue while another approved leave is running today. Without it, a rider with an older approved leave that was never closed *and* a current one was moved to Vacation and straight back to Overdue on every sync. No rider on Dev was in that state on 2026-10-06.

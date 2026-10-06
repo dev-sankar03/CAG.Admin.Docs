@@ -53,7 +53,7 @@ Severity is a documentation judgement, not a formal triage:
 | Sev | Behaviour | Detail |
 |---|---|---|
 | 🔴 | **Listing riders performs writes.** `GET /api/rider/all` and `/paged` bulk-update rider statuses from leave data before returning — non-idempotent GETs, unsafe on a read replica. | [rider-management](rider-management.md) |
-| 🟠 | **Rider status exit auto-unassigns the vehicle** — `FreeId`/`Suspended`/`Terminated`/`Cancelled` release the vehicle via both `ChangeRiderStatus` and `UpdateRiderAsync`. (Intended, but easy to miss.) | [rider-vehicle-assignment](rider-management.md) |
+| 🟠 | **Rider status exit auto-unassigns the vehicle** — `Suspended`/`Terminated`/`Cancelled` release the vehicle via both `ChangeRiderStatus` and `UpdateRiderAsync`, and so does a client assignment ending (End / Release / Suspend / Mark Churn in `RiderAssignmentService`) — the rider's company status is *not* changed by that any more (Free ID was retired as a company status on 2026-10-06). (Intended, but easy to miss.) | [rider-vehicle-assignment](rider-management.md) |
 | 🟢 | **Rider detail used to be blocked mid-workflow** — `Onboarding`/`VisaProcess`/`LocalTransfer` returned 403 unless `skipStatusCheck=true`. Since Phase II OC-09 (2026-10-01) `GET api/rider/{id}` always skips the gate and the Rider list opens these riders; the service-level gate remains for rider-order import and the performance export. | [rider-management](rider-management.md) |
 
 ## Correctness bugs (wrong result)
