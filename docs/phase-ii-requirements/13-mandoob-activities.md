@@ -3,7 +3,7 @@
 > Source: `CAG_Phase_II.docx` → *Mandoop Activities (Milestone 1)* ("Mandoob" = government-liaison
 > representative)
 > Modules touched: **New Activities module**, Users (Mandoob users), Rider, Client, Company.
-> **Status: built 2026-10-06 (Milestone 1 and the M2 dashboard) — see [§4](#4-decisions--implementation-2026-10-06). DB script on Dev only; UI not yet browser-tested.**
+> **Status: built 2026-10-06 (Milestone 1 and the M2 dashboard) — see [§4](#4-decisions--implementation-2026-10-06). Merged to `develop` and the DB script applied to Dev and QA on 2026-10-06; PROD pending (`CAG.Admin.API/Database/Migrations/RELEASE_RUNBOOK.md`, #20).**
 > Related docs: [users/roles](../authentication-authorization.md),
 > [id generation](../authentication-authorization.md), [dataviz](../implementation-impact-analysis.md).
 
@@ -130,8 +130,9 @@ the suggestions marked 💡 unless noted below — none of them has been confirm
   Permissions screen can edit them.
 - Company / rider / client are foreign keys with RESTRICT: a rider or company that has activities
   cannot be hard-deleted. `createdBy` / `updatedBy` / `assignedTo` are deliberately not foreign keys.
-- Re-runnable. **Applied to Dev (`CAG_Admin_Dev`) on 2026-10-06; not yet on QA or PROD.** Run it
-  before deploying the API build, and note that users only get the new module at their next sign-in.
+- Re-runnable. **Applied to Dev and QA on 2026-10-06; not yet on PROD** — it is #20 in
+  `CAG.Admin.API/Database/Migrations/RELEASE_RUNBOOK.md`. Run it before deploying the API build,
+  and note that users only get the new module at their next sign-in.
 
 ### 4.3 API — `api/mandoob-activity` (`MandoobActivityController` → `MandoobActivityService`)
 
@@ -180,8 +181,12 @@ Activity List after signing in.
   type master, validation, create / update, list filters, follow-ups moving the status, names and
   Arabic text mapping) — all passed, and the test rows were removed. The API boots with the new
   routes and answers 401 without a token.
-- UI: `tsc`, ESLint and `next build` pass. **Not exercised in a browser** (needs a login) — the
-  screens, the attachment upload and the permission screen row still need a manual pass.
+- UI: `tsc`, ESLint and `next build` pass. The developer build was not exercised in a browser
+  (needs a login).
+- QA (checked read-only on 2026-10-11): the build is in use — a Mandoob user was created, and five
+  activities, ten follow-ups (two activities taken to Completed) and two attachments were entered
+  there after the release. The Follow-up Dashboard and the Permissions row were not specifically
+  checked.
 
 ### 4.6 Still open
 

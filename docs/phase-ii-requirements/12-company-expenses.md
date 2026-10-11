@@ -3,7 +3,7 @@
 > Source: `CAG_Phase_II.docx` → *Company Expenses Module (Milestone 2)*
 > Modules touched: **New Company Expenses module**, Dashboard/Finance Summary
 > ([01](01-main-dashboard.md)).
-> **Status: built 2026-10-06 as a module of its own (`CAG_COMPANY_EXPENSE`) — see [§4](#4-decisions--implementation-2026-10-06). DB script on Dev only; UI not yet browser-tested.**
+> **Status: built 2026-10-06 as a module of its own (`CAG_COMPANY_EXPENSE`) — see [§4](#4-decisions--implementation-2026-10-06). Merged to `develop` and the DB script applied to Dev and QA on 2026-10-06; PROD pending (`CAG.Admin.API/Database/Migrations/RELEASE_RUNBOOK.md`, #19).**
 > Related docs: [expense migration (rider)](../database-access-layer.md),
 > [data-access masters](../database-access-layer.md), [dataviz](../implementation-impact-analysis.md).
 
@@ -122,8 +122,9 @@ Builds on `2026-09-29_DashboardRevamp.sql` (which created the two tables).
   Expenses, Municipality, Software Subscription, Insurance, Bank Charges).
 - `PageModule` `CAG_COMPANY_EXPENSE` and one `RolePermission` row per role that has a Finance row,
   with the same level.
-- Re-runnable. **Applied to Dev (`CAG_Admin_Dev`) on 2026-10-06; not yet on QA or PROD.** Users only
-  get the new module at their next sign-in.
+- Re-runnable. **Applied to Dev and QA on 2026-10-06; not yet on PROD** — it is #19 in
+  `CAG.Admin.API/Database/Migrations/RELEASE_RUNBOOK.md`. Users only get the new module at their
+  next sign-in.
 
 ### 4.3 API — `api/company-expense` (`CompanyExpenseController` → `CompanyExpenseService`)
 
@@ -177,8 +178,12 @@ date picker's `DD/MM/YYYY` text, which the API cannot read.
   server) — all passed, and the test rows were removed. The API boots with the new routes and
   answers 401 without a token.
 - UI: `tsc`, ESLint and `next build` pass, and the old link answers with a redirect to the new
-  route. **Not exercised in a browser** (needs a login) — the screens, the bill upload and the
-  charts still need a manual pass.
+  route. The developer build was not exercised in a browser (needs a login).
+- QA (checked read-only on 2026-10-11): the build is in use — two expenses (Cash, Bank) and one new
+  category were entered there after the release. No bill had been uploaded on QA yet, so **the bill
+  upload and the Analysis Dashboard still need a manual pass**.
+- Review before release (2026-10-11): no shared component, hook or endpoint outside this module was
+  changed except by adding to it; a failed bill clean-up on delete is now logged.
 
 ### 4.6 Still open
 
