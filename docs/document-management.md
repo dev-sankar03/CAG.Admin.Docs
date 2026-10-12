@@ -256,3 +256,6 @@ This module **is** the platform's logging mechanism, and it can fail invisibly (
 ## Changes 2026-10-12 (bug sheet 13–33)
 
 - **New source `RiderComplaint`** (bug sheet #13): complaint attachments, `sourceId` = complaint id, document type id 45, folder key `FilePath:RiderComplaintFiles`. `DocumentService.GetDocumentAsync` and `GetDocumentsBySourceAsync` refuse this source to riders (403) — the first source-specific access check in the document endpoints; every other source is still unchecked.
+
+- **Several files per upload** (bug sheet #31, UI only): the Documents tab's upload dialog accepts up to 5 files for the chosen document type in one go (pages / sides of a passport, civil ID, licence); they are sent as `files[0..n]` with the same type and expiry. A selfie stays a single photo. The API and tables already allowed several documents per type.
+- **Rider document type "Baldiya"** (bug sheet #15): `DocumentType` 44 `RAIDER_BALDIYA`, script `2026-10-12_DocumentType_RiderBaldiya.sql`; no code change.

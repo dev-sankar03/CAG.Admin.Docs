@@ -240,3 +240,5 @@ None beyond the platform-wide exception log — and no logging exists that would
 - **Company Expense Breakdown has its own month filter** (bug sheet #28): *Month* (follows the Finance Summary period until one is picked) and *Compare with* (a second month of the same year → a category table with both amounts and the change). It reuses `GET api/dashboard/finance/overview` per month; no API change.
 - **Onboarding counts leave out inactive HR Workflow entries** (bug sheet #30): `VisaProcess` / `LocalTransfer` in the rider breakdown exclude riders with `Rider.hrWorkflowInactive = 1`. Needs `2026-10-12_RiderHrWorkflowInactive.sql` before the API deploy — the breakdown query fails without the column.
 - **Client contract expiry template** can list every contract (`status=full`) — see [Client ↔ Client User ID](client-clientuserid-mapping.md).
+
+- **Vehicle quota ignores inactive vehicles** (bug sheet #29): Registered vehicles = live, Active, company-registered vehicles.
