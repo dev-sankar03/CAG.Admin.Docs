@@ -304,3 +304,7 @@ None beyond the FTP-based generic exception log. No audit trail of who changed a
 - Password change sends the new password as a URL query parameter — a real logging-exposure risk.
 - No endpoint in this module checks caller role — any authenticated user can create a new Admin account.
 - Profile images: FTP-backed, cached per-user in `IMemoryCache` with a 10-minute sliding / 30-minute absolute expiry.
+
+## Changes 2026-10-12 (bug sheet 13–33)
+
+- **Duplicate email is checked before the write** (bug sheet #22): `UserService.RegisterAsync` answers 409 *"The email … is already used by another user"* on create and on update, instead of failing on the `User.email` unique key with a generic 500. Deleting an onboarding rider now also deletes that rider's `User` row (see [HR Workflow](hr-workflow-onboarding.md)).

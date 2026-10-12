@@ -265,3 +265,7 @@ No role check on any endpoint — company creation, partner ownership-percentage
   - **Two fields that update no longer overwrites:** `PUT api/company` writes every `Company` column from the request body, so (a) `isActive` is now forced to `true` — sending `false` used to soft-delete the company without clearing its code — and (b) `image` keeps its saved value when the request has none — the form never sends it, so **every save used to clear the company logo**.
   - **Reading it:** `companyStatus` is on `GET api/company/all`, `/paged` and `/{id}`. The list's Status column and filter use it (`CompanyListRequest.CompanyStatus`, sortable as `companyStatus`; the old `isActive` filter could only ever match everything or nothing) and the header reads "N companies · N active · N inactive". The dashboard's Total Companies card counts both — see [Dashboard & Reporting](dashboard-reporting.md).
   - Values and the normaliser live in `CAG.Admin.API.Domain/Enums/CompanyStatuses.cs`.
+
+## Changes 2026-10-12 (bug sheet 13–33)
+
+- **Vehicle Quota on the company page is read-only** (bug sheet #18). The editable *Car Quota* / *Bike Quota* inputs are gone from the company Overview and from Add Company. The card now shows the calculated quota for that company — Registered Vehicles, Total Quota (× 2), Employees Onboarded, Available Quota — from `GET api/dashboard/vehicles/quota`. `Company.carQuota` / `bikeQuota` still exist and are still sent on save with their stored values (0 for a new company); nothing reads them.

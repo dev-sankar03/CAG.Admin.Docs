@@ -263,3 +263,7 @@ Nothing notable at current volumes (`SalesCashEntry` 1,390 rows, `SalesCashDetai
 - Export has a write side effect (stamping `ExportedAt`), the same "read mutates state" pattern seen elsewhere in the platform.
 - The export endpoint's company-scoping (allow-list intersection with a `Forbidden` fallback) is genuinely well-designed — one of the platform's better authorization implementations, worth using as a model elsewhere.
 - Month-end `PendingDues` from `SalesCashDetails` is a direct input to [Payroll Management](payroll-management.md)'s expense calculation.
+
+## Changes 2026-10-12 (bug sheet 13–33)
+
+- **Client Cash Details columns** (bug sheet #23, UI only). The grid showed the day's figures and the sheet's running totals under near-identical names (*Sales Amount* / *Total Sales*, *Collected Amount* / *Total Collection*). They are now **Day Sales** and **Day Collection** (the sheet's `DD-S` / `DD-C` columns for the entry date), then **Total Cash**, **Collected Cash** and **Pending Cash** (the sheet's Total Sales / Total Collection / Pending Dues). Cash/Al-Muzaini, Bank Transfer, Incentives/Tips, Adjustments, Opening Balance and Created At are hidden by default (Columns menu). A one-line summary above the grid totals the picked date: day sales and day collection with the number of riders that have each, and the three totals. Stored fields and the import are unchanged.

@@ -195,3 +195,7 @@ Activity List after signing in.
 - Whether a Mandoob should see only the activities assigned to them (today: every activity of their
   companies, with an Assigned To filter).
 - No notifications or reminders for due dates and follow-ups (not in the requirement).
+
+## Changes 2026-10-12 (bug sheet 13–33)
+
+- **New status `Reopened`** (bug sheet #26): added to `MandoobActivityStatus` (API) and the UI status list / pills. It behaves as an open status (can be overdue or due today) and is offered wherever a status is picked — the activity form, a follow-up, the list filter — so a Completed or Cancelled activity can be taken up again on the same entry. Stored by name in `VARCHAR(20)`; no script.

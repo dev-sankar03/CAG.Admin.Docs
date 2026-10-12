@@ -179,3 +179,7 @@ Nothing notable (`PassportRequest` at 0 rows per [architecture-overview.md](arch
 - This is the single clearest real-world demonstration of the abstract risk described in [Database Access Layer](database-access-layer.md) — reflection-based SQL generation cannot distinguish a wrong C# type from a right one when their shapes coincide.
 - Shares [Helpdesk](helpdesk.md)'s confirmed IDOR on the rider-scoped ticket list, and its missing `CreatedBy` on creation.
 - Currently zero rows in the live dataset — the ideal time to fix both the type-confusion bug and the IDOR before real data accumulates.
+
+## Changes 2026-10-12 (bug sheet 13–33)
+
+- **New status "Submitted"** between Passport Received and Closed (bug sheet #27): Passport Requested → Approved → Passport Collected By Rider → Passport Received → **Submitted** → Closed. `PassportRequest.status` is an ENUM, extended by `2026-10-12_PassportRequestStatus_Submitted.sql` (value appended at the end; step order comes from the UI's `PASSPORT_FLOW`). UI only otherwise: enum, flow, status metadata, a new tab, and the transitions (Supervisor role 4 and Admin: Received → Submitted → Closed). The API stores the status by name and needed no change. Run the script before the UI deploy.

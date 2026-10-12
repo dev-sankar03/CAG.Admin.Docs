@@ -252,3 +252,7 @@ This module **is** the platform's logging mechanism, and it can fail invisibly (
 - The `(Source, SourceId)` polymorphic association pattern trades referential integrity for schema flexibility, requiring every cross-entity query to CASE-branch by source type.
 - Rider-uploaded documents are audited under `RiderId` rather than the platform's usual `UserId` convention.
 - Upload batches are all-or-nothing per file, unlike the partial-failure-tolerant pattern used for image uploads elsewhere in the platform.
+
+## Changes 2026-10-12 (bug sheet 13–33)
+
+- **New source `RiderComplaint`** (bug sheet #13): complaint attachments, `sourceId` = complaint id, document type id 45, folder key `FilePath:RiderComplaintFiles`. `DocumentService.GetDocumentAsync` and `GetDocumentsBySourceAsync` refuse this source to riders (403) — the first source-specific access check in the document endpoints; every other source is still unchecked.

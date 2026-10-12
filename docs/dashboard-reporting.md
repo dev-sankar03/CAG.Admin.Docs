@@ -234,3 +234,9 @@ None beyond the platform-wide exception log — and no logging exists that would
 - **Workforce card — "Free Riders" row removed** (bug sheet #7): it counted riders in the company status Free ID, which no longer exists (see [Rider Management](rider-management.md) §3). Free IDs are counted once, under Client Rider Status on the Total Riders card. `AvailabilityDto.FreeRiders` is still returned by the API (0 once the riders are migrated) but nothing shows it. The Total Riders card's Company Rider Status list keeps its Free ID row only while a rider still has that status (an un-migrated database).
 - **Vehicle quota after the Free ID move:** riders moved from Free ID to Active count as onboarded when they belong to a company. Dev: all companies 999 → 1,027 onboarded; AMK 104 quota − 81 onboarded = 23 available.
 - **Vacation counts refresh on their own** (bug sheet #8): a leave request being added, changed or closed — and a background vacation sync that actually moved a rider — now invalidates the `["dashboard"]` queries, so the Vacation card and the status rows update without leaving the page.
+
+## Changes 2026-10-12 (bug sheet 13–33)
+
+- **Company Expense Breakdown has its own month filter** (bug sheet #28): *Month* (follows the Finance Summary period until one is picked) and *Compare with* (a second month of the same year → a category table with both amounts and the change). It reuses `GET api/dashboard/finance/overview` per month; no API change.
+- **Onboarding counts leave out inactive HR Workflow entries** (bug sheet #30): `VisaProcess` / `LocalTransfer` in the rider breakdown exclude riders with `Rider.hrWorkflowInactive = 1`. Needs `2026-10-12_RiderHrWorkflowInactive.sql` before the API deploy — the breakdown query fails without the column.
+- **Client contract expiry template** can list every contract (`status=full`) — see [Client ↔ Client User ID](client-clientuserid-mapping.md).

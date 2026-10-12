@@ -191,3 +191,8 @@ date picker's `DD/MM/YYYY` text, which the API cannot read.
   permission levels.
 - The sample shows Export buttons on the dashboard tables; only the Expense List exports today.
 - Net Profit on the main dashboard still comes from `api/dashboard/finance/overview` — unchanged.
+
+## Changes 2026-10-12 (bug sheet 13–33)
+
+- **One expense shared by several companies** (bug sheet #25, first half). The Add form's Company field is multi-select. One company → a normal entry. Two or more → `POST api/company-expense/split` (`CompanyExpenseService.AddSplitAsync`): the amount is divided equally (2 decimals; the fils left over go to the first company so the parts add up), one expense is written per company, each with a remark *"Split equally across N companies (total KWD X)."*, and the uploaded bill is attached to each. All rows are validated before any is written. Editing stays per entry.
+- **Not built yet — recurring expenses** (bug sheet #25, second half: "freeze" rent / electricity so it is applied every month automatically). The API has no scheduler, so this needs a template table plus a defined moment at which a month's entries are created; see the open questions in `CAG_Phase_II_Bugs_Notes.md`.
