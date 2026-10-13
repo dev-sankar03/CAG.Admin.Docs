@@ -269,3 +269,9 @@ No role check on any endpoint — company creation, partner ownership-percentage
 ## Changes 2026-10-12 (bug sheet 13–33)
 
 - **Vehicle Quota on the company page is read-only** (bug sheet #18). The editable *Car Quota* / *Bike Quota* inputs are gone from the company Overview and from Add Company. The card now shows the calculated quota for that company — Registered Vehicles, Total Quota (× 2), Employees Onboarded, Available Quota — from `GET api/dashboard/vehicles/quota`. `Company.carQuota` / `bikeQuota` still exist and are still sent on save with their stored values (0 for a new company); nothing reads them.
+
+## Changes 2026-10-13 — inactive companies are read-only (bug sheet #5)
+
+- **Mark as Inactive / Mark as Active** in the company list's row menu → `PUT api/company/{id}/status` body `{ "companyStatus": "Active" | "Inactive" }` (`PartnerCompanyService.SetCompanyStatusAsync`, caller's companies only). The toggle on the company page's edit form still works.
+- **An inactive company can be viewed but not changed.** `CompanyGuard.EnsureActiveAsync` answers **409** with `CompanyStatuses.InactiveMessage` for: saving the company (unless that save marks it Active), adding / updating a partner, saving or uploading company documents, changing or removing the logo, **adding a rider** to it or moving a rider into it, and **adding a vehicle** to it. Deleting a partner or a company document is refused too. Not guarded: deleting the company itself, and edits to riders / vehicles that already belong to it.
+- **UI** — an axios response interceptor recognises that 409 (message starts with "This company is inactive") and raises `cag:company-inactive`; `CompanyInactivePopup` (mounted in `AppProviders`) shows it as a popup on any screen.
