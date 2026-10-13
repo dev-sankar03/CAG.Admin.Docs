@@ -259,3 +259,7 @@ This module **is** the platform's logging mechanism, and it can fail invisibly (
 
 - **Several files per upload** (bug sheet #31, UI only): the Documents tab's upload dialog accepts up to 5 files for the chosen document type in one go (pages / sides of a passport, civil ID, licence); they are sent as `files[0..n]` with the same type and expiry. A selfie stays a single photo. The API and tables already allowed several documents per type.
 - **Rider document type "Baldiya"** (bug sheet #15): `DocumentType` 44 `RAIDER_BALDIYA`, script `2026-10-12_DocumentType_RiderBaldiya.sql`; no code change.
+
+## Changes 2026-10-13 — expiry date optional on upload (bug sheet #15, reopened)
+
+The three upload forms (rider / vehicle / company Documents tab, the add-rider / add-vehicle uploader, HR Workflow step documents) no longer require an expiry date for any document type — `DocumentType.isMandatory` used to force it. A document saved without one shows "No expiry" and, having no date, is not picked up by any expiry alert. The field is still offered (not for selfies).

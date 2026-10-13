@@ -275,3 +275,9 @@ No role check on any endpoint — company creation, partner ownership-percentage
 - **Mark as Inactive / Mark as Active** in the company list's row menu → `PUT api/company/{id}/status` body `{ "companyStatus": "Active" | "Inactive" }` (`PartnerCompanyService.SetCompanyStatusAsync`, caller's companies only). The toggle on the company page's edit form still works.
 - **An inactive company can be viewed but not changed.** `CompanyGuard.EnsureActiveAsync` answers **409** with `CompanyStatuses.InactiveMessage` for: saving the company (unless that save marks it Active), adding / updating a partner, saving or uploading company documents, changing or removing the logo, **adding a rider** to it or moving a rider into it, and **adding a vehicle** to it. Deleting a partner or a company document is refused too. Not guarded: deleting the company itself, and edits to riders / vehicles that already belong to it.
 - **UI** — an axios response interceptor recognises that 409 (message starts with "This company is inactive") and raises `cag:company-inactive`; `CompanyInactivePopup` (mounted in `AppProviders`) shows it as a popup on any screen.
+
+## Mark as inactive / active — row menu and confirmation (2026-10-13, UI only)
+
+The company list's row menu now shows each status action with an icon and a one-line explanation (*Mark as inactive — Put on hold, read-only* / *Mark as active — Allow changes again*), with a rule above Delete. `RowActionMenu.extraActions` takes an optional `description` and `icon` for this.
+
+**Mark as inactive asks first**: a confirmation dialog names the company and says what changes — the company, its partners and its documents become read-only; riders, vehicles and their documents are not affected. Cancel is focused, so Enter cannot confirm by accident. **Mark as active goes straight through**, since it only lifts the restriction. The API call and the 409 behaviour are unchanged.

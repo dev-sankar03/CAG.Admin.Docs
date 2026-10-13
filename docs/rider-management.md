@@ -382,3 +382,7 @@ None beyond the platform-wide FTP exception log.
 
 - **Rider export** has a **Client Rider Status** column after Client User ID — the status of the ID of the rider's active client assignment, named as in the UI (blank without an assignment). Employment Type was already there.
 - **Deductions in 2 or 3 payments** — `POST` rider expense accepts `installments` (1–3, add only, positive amounts only). 2 or 3 creates that many entries: equal parts to 3 decimals (the last takes the rounding remainder), dated one month apart from the entry date, remarks suffixed "(Payment i of n)". Payroll claims an entry in the month of its date, so each part is deducted from its own month. The parts are ordinary entries afterwards (edit / delete one at a time). UI: *Deduct in* on the Add Expense Entry form.
+
+## Changes 2026-10-13 (bug sheet #38)
+
+Rider list → Client Rider Status filter also offers **Churn** and **Clearance Completed**.
