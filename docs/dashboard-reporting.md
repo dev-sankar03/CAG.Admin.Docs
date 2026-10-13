@@ -242,3 +242,37 @@ None beyond the platform-wide exception log — and no logging exists that would
 - **Client contract expiry template** can list every contract (`status=full`) — see [Client ↔ Client User ID](client-clientuserid-mapping.md).
 
 - **Vehicle quota ignores inactive vehicles** (bug sheet #29): Registered vehicles = live, Active, company-registered vehicles.
+
+## Changes 2026-10-12 — Inactive row (bug sheet #35)
+
+- `GetRiderStatusBreakdownAsync` returns `Inactive` (status 17) and the Riders status card shows an **Inactive** row under Company Rider Status, linking to the Rider list filtered on it. Inactive riders are still part of Total Riders.
+
+## Changes 2026-10-13 — Chart audit (UI only, no API or data change)
+
+- **Company Expense Breakdown is a ranked bar list, not a donut.** Up to nine categories made the donut unreadable, and its own side list already carried the numbers. It now uses the shared `RankedBars` (`components/dashboard/dashboard-viz.tsx`), the same component as Category-wise Expenses on the Analysis page and Activities by type on the Mandoob dashboard, which previously each held a copy. The month-compare table is unchanged apart from the per-category colour dots, which only served the donut. Only the donut in Partner Company → Ownership split remains (a true part-to-whole of a few holders).
+- **One tooltip, one palette source, one legend.** `TooltipCard` is the tooltip for every chart; the rider dashboard's three dark tooltips and its own `Legend` are gone (it reuses `SeriesLegend`), and `CHART` slots 2–4 are taken from `SERIES_COLORS`. Axis text on the rider dashboard and the Performance Trend card now uses the shared `AXIS_TICK` (`#6b7280`) — it was `#8d93a0` / `#9ca3af`, below 4.5:1 on white. The rider dashboard keeps brand orange as slot 1 (earnings), which matches Payroll on the company dashboard.
+- **Charts carry a text description** (`desc`, rendered as the SVG `<desc>`): orders, finance trend, expense trend, every rider chart and the partner donut.
+- **Top Riders / Low Performers show the Orders count** that ranks them (`Performers.totalCompletedOrders` was returned but not shown). Rider status labels have a wider column and always carry a hover title.
+- **Removed** `expense-pie-chart.tsx` (`RiderExpensePieChart`, `RiderExpenseLegend` — unused) and `pie-chart-legend.tsx`; `EXPENSE_COLOR_MAP` moved to `utils/expense-category-color.ts`.
+- **API issue found, not changed:** `AttendanceDto.Month` is a public field, not a property, so it is missing from the JSON. The rider Attendance chart and table therefore show "—" for the month and React warns about duplicate keys. Same payload: `ExpensesDto.Paymonth` serialises as `paymonth`, while the UI model reads `payMonth`. Fix is `{ get; set; }` / `PayMonth` in `RiderPerformanceDto.cs`.
+
+## Changes 2026-10-13 — KPI review (UI only, no API or calculation change)
+
+Reviewed: main Dashboard (Overview, Rider Performance, Orders, Finance, Compliance), Rider detail dashboard, Company Expense Analysis, Mandoob Follow-up dashboard, Partner Company summary. Every figure still comes from the same endpoints and the same calculations.
+
+- **Finance Summary: six tiles → four.** *Pending EMIs* and *Pending Traffic Fines* are gone from the period row: the same two figures are already in the Overview cards and in the *Pending Payments* panel (which keeps both "View" actions), and they were labelled "Outstanding today" under a Month / Year filter that they ignore. What is left reads as a statement — Revenue → Payroll → Company Expenses → Net Profit.
+- **Month-over-month change** on those four tiles, only when one month is selected: compared with the month before it, taken from the monthly trend the section already loads (no extra call). Payroll and Expenses use "lower is better" colouring. No chip for *All months* or January (the data holds no earlier period), when the earlier month is 0, or when the current value is exactly 0 — a month with payroll not yet run would otherwise read as "down 100%".
+- **Rider status bars** (Company / Client Rider Status) are each status's share of that list's total, not of its own largest row — before, Company Active (1,252 of 1,677) and Client Active (819 of 1,092) both filled the bar. Both now read 75%. The hover title carries the share; rows at 0 are dimmed.
+- **Expense Analysis:** the tiles *Company-wise / Category-wise Expenses* showed a name, which read as a total. They are now *Top company* / *Top category*, with the amount and its share of the period's expenses.
+- **Mandoob summary cards** (list and Follow-up dashboard) are ordered by what needs action: Overdue, Due Today, Open, Pending, Completed, Total. Counts and click-to-filter are unchanged.
+- **Reviewed, no change:** Overview cards (Companies / Vehicles split bars, EMIs, Fines), Workforce, Vacation Status, Orders tiles (already carry vs-previous-month change), Rider detail tiles (Net payable first, deltas and sparklines backed by payroll history, attendance ring), Vehicle quota (Registered → Quota → Onboarded → Available, tightest company first), Partner ownership tiles.
+
+**Recommended, but it needs data the API does not return today** (none of it is shown, so nothing is invented):
+
+| KPI | Needs |
+|---|---|
+| Finance change for *All months* / January / year-on-year | Prior-period (or prior-year) totals from `finance/overview` |
+| Revenue, payroll, expense and orders-per-rider vs target | A stored target / budget per company and month |
+| Active-riders and onboarding trend (change over 30 days, like Companies / Vehicles have) | A daily rider-status snapshot — today only the current status exists |
+| Vehicle-quota utilisation trend and "time to full" | Historical onboarded counts per company |
+| Pending EMIs due-by-month outlook | Due amounts per future month (only *due this month* is returned) |

@@ -237,3 +237,30 @@ Whole-workbook, in-memory, synchronous parsing within the HTTP request — consi
 - `ImportRiderOrderList` — despite living in this module — has nothing to do with attendance; it belongs to [Rider Orders & Batch Billing](rider-orders-batch-billing.md) by function, confirmed by reading its implementation.
 - No apparent company-scope enforcement on either import path.
 - `Attendance` is the most heavily-indexed table in the schema, reflecting its write-heavy, date-range-query-heavy usage pattern.
+
+## Changes 2026-10-12 — Shift Report (bug sheet #19)
+
+A second, separate source of attendance: the client's **shift export** (CSV, one row per shift: `shift id, employee id, employee name, starting point, shift tag, shift status, planned start/end date + time, actual start/end date + time`). `employee id` is the Client User ID. It does not touch the `Attendance` table or the existing grid import.
+
+- **Import** — `POST api/attendance/shifts/import` (multipart `file`, .csv, 20 MB) → `AttendanceShiftService.ImportAsync`. Rows are upserted into `AttendanceShift` by `shiftId` (re-importing a file updates it), in 500-row statements inside one transaction. `riderId` is then resolved from `ClientRiderConfig` — whoever held that Client User ID on the shift's planned start date; shifts with no holder are stored with `riderId` NULL, reported as "unmatched", and left out of the report. A shift without both actual times is treated as not worked. Script `2026-10-12_AttendanceShift.sql`.
+- **Report** — `GET api/attendance/shifts/report?from=&to=` (≤ 62 days, caller's companies) → `GetReportAsync`, calculated on read:
+  - Planned and actual hours per rider per date. **A shift is split at midnight**: 21:00 → 10:00 gives 3 h on the first date and 10 h on the second.
+  - Day status: **Worked** if any actual hours fall on the date; otherwise, for a date on which a shift was due to *start*: **Leave** if the rider has Approved / Closed leave covering it, **Excused** if every such shift is `NO_SHOW_EXCUSED`, else **Absent**. A date that only holds the unworked tail of an overnight shift shows "—" and counts as nothing, so one missed shift is one absence.
+  - Per rider: working, absent, excused and leave days, planned and actual hours.
+  - The shift tag(s) of each date (APPLICATION, CSV, SWAP, MANUAL) are shown.
+- **UI** — HR → Attendance → **Shift Report** tab (`/HR/Attendance/Shifts`): date range, *Date-wise* / *Per rider* views, totals line, CSV export, and *Import Shift File (CSV)* for users with edit permission on HR Management.
+- Times are stored exactly as in the file (no time-zone conversion).
+
+- **Rules confirmed by the user 2026-10-12 (these replace the day-status bullet above):** a shift is one **working day on the date it starts** (an overnight shift is not a second working day; its hours are still split at midnight, and a date holding only the end of a shift shows "—"); a missed shift is one absence on its start date; an excused no-show is **Excused**, not Absent; **a date with no shift at all is Absent** (Leave if approved leave covers it) — only between the first and last shift date the imported files cover within the period; shifts with no rider for the employee id are stored but not shown. The Shift Report is now the Attendance page itself (`/HR/Attendance`); the earlier grid and its Excel import moved to the **Previous Format** tab (`/HR/Attendance/Previous`) — the rider dashboard still reads the old `Attendance` table.
+
+## Changes 2026-10-13 — shift report rules revised (bug sheet #19)
+
+These replace every earlier day-status rule in the 2026-10-12 section (`AttendanceShiftService.GetReportAsync`):
+
+- **Worked** — any actual hours fall on the date. Hours are compared per date, so an overnight shift is a working day on **both** of its dates.
+- **Leave** — no actual hours and Approved / Closed leave covers the date. Shown on its own, never an absence.
+- **Absent** — planned hours on the date, no actual hours. The file's own no-show statuses (excused / unexcused) are ignored; there is no Excused status any more.
+- **No Shift** — nothing planned and nothing worked on a date inside the range the imported files cover. Counted in the absent days (`AbsentDays` includes `NoShiftDays`).
+- Shifts whose employee id has no rider on the shift date are stored, left out of the report, and counted in the import result ("unmatched").
+- **UI** — the report is the Attendance page (`/HR/Attendance`) and shows no tabs. The earlier grid and its import history are no longer linked; they still open at `/HR/Attendance/Previous` and `/HR/Attendance/Logs`. **Rider Performance and Leave still read the old `Attendance` table**, which now only changes if someone imports through the old URL.
+- Shifts are attributed by Client User ID: the rider who holds the ID (per `ClientRiderConfig`) on the shift's planned start date gets the shift, whoever physically rode.

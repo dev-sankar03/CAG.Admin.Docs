@@ -198,3 +198,39 @@ date picker's `DD/MM/YYYY` text, which the API cannot read.
 - **Not built yet — recurring expenses** (bug sheet #25, second half: "freeze" rent / electricity so it is applied every month automatically). The API has no scheduler, so this needs a template table plus a defined moment at which a month's entries are created; see the open questions in `CAG_Phase_II_Bugs_Notes.md`.
 
 - **Recurring expenses — built 2026-10-12** (bug sheet #25, second half; replaces the "not built yet" note above). An expense can be ticked *Repeat every month* and, while recurring, *Paused*. Columns `CompanyExpense.isRecurring`, `recurringPaused`, `recurringSourceId` (script `2026-10-12_CompanyExpenseRecurring.sql`, before the API deploy). There is no scheduler: `CompanyExpenseService.GetAllAsync` / `GetAnalysisAsync` call `CompanyExpenseRepository.GenerateRecurringAsync` for the current month, which copies every recurring, un-paused expense from an earlier month into this month — same day of the month (last day when shorter), `recurringSourceId` = the original, at most one per month (unique key + INSERT IGNORE). So a month's entries appear the first time Company Expenses is opened that month; the dashboard alone does not create them, and months in which nobody opened the module are not back-filled. A created entry is an ordinary expense (it can be edited for that month only; if it is deleted it is created again on the next read, so pause the recurring expense instead). Bills are not copied. With a multi-company split, each company's entry is recurring on its own.
+
+## UI review and local end-to-end test — 2026-10-12
+
+Done on a developer build (`localhost`, Dev database) signed in as a temporary test admin.
+
+**Fixed**
+
+- **Bill count after Add** — an expense added together with a bill showed "—" in the *Bill*
+  column until the page was reloaded: the list reloads when the expense is saved, which is before
+  its bill is uploaded. The form now reloads the list again once the upload has finished.
+- **Expense list on laptop screens** — the visible columns were about 1390px wide, so on a
+  1280–1440px screen *Bill* and *Actions* (Edit / Delete) were behind a horizontal scrollbar. The
+  widths now fit a 1280px screen and *Actions* is pinned to the right, as on the other lists.
+- **Analysis Dashboard** — *Category-wise Expenses* and *Monthly Expense Trend* are the same
+  height (the chart fills its card). The category bar is the category's share of the total, the
+  same percentage printed beside it (was: relative to the largest category).
+- **Add / Edit Category modal**, **Categories → Status** — see the Activity Types items in
+  `13-mandoob-activities.md` (shared `name-master-page.tsx` / `checkbox.tsx`).
+- **Expense form** — Enter in the *Date* picker no longer submits the form
+  (`keepEnterInDatePicker`); the multi-company picker has the same caret as the other dropdowns;
+  `useWatch` instead of `watch()` (the React Compiler was skipping the component).
+
+**Exercised by hand** — required-field messages; Add with a bill (one company); Add split across
+three companies with a bill (KWD 100 → 33.34 + 33.33 + 33.33, one entry and one bill each); Edit
+(amount, remarks; Added by / Modified by shown); the Bills pop-up; Delete with confirmation;
+search; entries count and total; Categories add / duplicate name / deactivate; Analysis Dashboard
+cards, company × month table, category shares and trend against the entered figures, and the
+Company filter. Not exercised: recurring expenses, Export, the Month / Year filters of the
+Analysis Dashboard.
+
+**Known, not changed** — the split hint says "KWD 33.33 for each of the 3 companies" although the
+first company takes the leftover fils (33.34); an expense that was never edited still shows its
+creator under *Modified by*.
+
+**Left on Dev** — three October 2026 expenses with reference `E2E-INV-001` / `E2E-INV-002`
+(AMK, BRKS), their bills, and the inactive category *E2E Test Category*.

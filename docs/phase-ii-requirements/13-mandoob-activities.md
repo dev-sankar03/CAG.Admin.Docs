@@ -161,9 +161,9 @@ the suggestions marked 💡 unless noted below — none of them has been confirm
 | Route | What it is |
 |---|---|
 | `/Mandoob-Activities` | Activity List: six cards (Total, Open, Pending, Completed, Overdue, Due Today) that also act as quick filters, search, Filter (Company, Activity Type, Status, Priority, Assigned To), a due-date range with month presets (the "Month" and "Date Range" filters), CSV export, **Add Activity**. Columns: Activity ID, Company (code), Type, Subject, Due Date, Priority, Status, Assigned To; Rider, Client, Follow-ups, Next follow-up, Created by / at are hidden but available. `?bucket=overdue` (etc.) preselects a card. |
-| `/Mandoob-Activities/{id}` | Details, follow-up history table, **Add follow-up**, attachments, **Edit**. |
+| `/Mandoob-Activities/{id}` | Activity page, laid out like the Rider details page: back button, identity card (subject, `ACT-n`, type / company / due / assignee, status and priority, **Add follow-up**, **Edit details**) and three sections on a left rail — **Overview** (the record, description, latest follow-up), **Follow-ups** (history table + the add form) and **Attachments**. `?tab=FollowUps` / `?tab=Attachments` opens on that section. |
 | `/Mandoob-Activities/Types` | Activity Types master: add, rename, activate / deactivate. A type in use is deactivated, never removed. |
-| `/Mandoob-Activities/Dashboard` | Follow-up Dashboard (M2): the six cards, **Follow-ups due** (next follow-up date is today or earlier), **Overdue**, **Upcoming due** (next 14 days) and **Activities by type**, with a company filter. Read-only; built from the same list endpoint. |
+| `/Mandoob-Activities/Dashboard` | Follow-up Dashboard (M2): the six cards, **Follow-ups due** (next follow-up date is today or earlier; each row opens the activity on its Follow-ups section), **Overdue**, **Upcoming due** (next 14 days) and **Activities by type**, with a company filter. Read-only; built from the same list endpoint. |
 
 Wiring: `ModuleCodes.mandoobActivities`, four `RolePageCode` entries, `RoleCodes.Mandoob = 9` (so the
 role appears in Admin → Users), the sidebar group, and a **Mandoob Activities** row in Admin →
@@ -199,3 +199,72 @@ Activity List after signing in.
 ## Changes 2026-10-12 (bug sheet 13–33)
 
 - **New status `Reopened`** (bug sheet #26): added to `MandoobActivityStatus` (API) and the UI status list / pills. It behaves as an open status (can be overdue or due today) and is offered wherever a status is picked — the activity form, a follow-up, the list filter — so a Completed or Cancelled activity can be taken up again on the same entry. Stored by name in `VARCHAR(20)`; no script.
+
+## UI review and local end-to-end test — 2026-10-12
+
+Done on a developer build (`localhost`, Dev database) signed in as a temporary test admin; this
+replaces "not exercised in a browser" in §4.5.
+
+**Fixed**
+
+- **Add / Edit Activity Type modal** — the *Active* tick box sat beside the middle of its
+  two-line text. `components/checkbox.tsx` now lines the box up with the label's first line when a
+  description is given (label-only uses, e.g. Sign-in "Remember me", are unchanged). Same component
+  as Company Expenses → Categories.
+- **Activity Types list** — *Status* showed AG Grid's greyed-out checkbox (the column was bound to
+  the boolean); it is now the word Active / Inactive.
+- **Follow-up Dashboard** — the two cards of a row are the same height and an empty card centres
+  its message (was: a strip of text at the top of a tall box next to a long list). *Total
+  Activities* is no longer drawn as "selected" — only a card that is narrowing the list is
+  highlighted. *Activities by type*: the bar is the type's share of all activities, the same
+  percentage printed beside it (was: relative to the largest type, so a 25% row had a full bar).
+- **Activity list** — the eight visible columns fit a 1280px screen without horizontal scrolling,
+  and *Due Date* is wide enough for "7 Oct 2026 · 5 days overdue".
+- **Activity form** — *Company* shows its "Select..." placeholder when empty (was a blank box) and
+  *Due Date* says "Select date".
+- **Activity page** — a follow-up error is shown under the field it is about (date, next date or
+  remarks) and disappears as soon as anything is changed; the follow-up card no longer stretches to
+  the height of the right-hand column.
+- **Date pickers in forms** — pressing Enter to confirm a typed date also submitted the form
+  around it. `keepEnterInDatePicker` (`components/form/app-date-picker.tsx`) on the form's
+  `onKeyDown` stops that; used by the activity form, the follow-up form and the expense form. Other
+  forms in the app still have the old behaviour.
+
+**Exercised by hand** — Admin → Users: a user with the Mandoob role; Add Activity with an
+attachment (assignee list follows the company); required-field messages; follow-ups (with and
+without a next date, one to Completed) and the status / history they produce; Edit; the six cards
+as quick filters; the Follow-up Dashboard panels with an overdue, a due-today and an upcoming
+activity; Activity Types add / duplicate name / deactivate. The Mandoob and Company Expenses rows
+of the permission matrix were read from `permissions/getall`; the Admin → Permissions screen
+itself was not opened.
+
+**Left on Dev** — activities ACT-1…ACT-4 (subjects start "E2E test"), their follow-ups, one
+attachment, and the user *E2E Test Mandoob* (deactivated after the test).
+
+## Activity page matched to the Rider details page — 2026-10-13
+
+Requested on 2026-10-13 ("needs to match rider more details"). The activity page was
+modelled on the Help-Desk ticket page (bare title, two columns); it now uses the Rider / Vehicle
+details pages' own parts, so the three look and behave alike:
+
+- `components/details/back-button.tsx` ("Back to Mandoob activities").
+- `components/mandoob/activity-header.tsx` — the identity card (same card shell as
+  `rider-header.tsx`, no photo tile because an activity has no picture) plus a loading skeleton of
+  the same shape.
+- `TabBar` (vertical rail on desktop, one row on phones) + `TabPanel` with **Overview**,
+  **Follow-ups** (count badge) and **Attachments** (count badge).
+- `SideCard`, `Field`, `KeyValueRow` from `components/details/vehicle/**` for every card.
+
+Behaviour that changed with it:
+
+- Follow-ups are one click away (the **Follow-ups** section) instead of on the landing view. To keep
+  the main job quick, the header's **Add follow-up** opens that section with the cursor in
+  *Remarks*, and the dashboard's *Follow-ups due* rows link to `?tab=FollowUps`.
+- What is typed in the follow-up form survives moving between sections.
+- *Record* shows *Last updated* only when the activity was changed after it was created (the API
+  stamps both at creation).
+- The page uses the details layout's full width (it was capped at 1180px).
+
+No API or data change. Checked on a developer build at 1366px and at phone width (sections, header
+button, `?tab=`, no sideways page scroll). Not re-checked: adding a follow-up and uploading a file
+from the new layout — the handlers are unchanged from the version tested on 2026-10-12.

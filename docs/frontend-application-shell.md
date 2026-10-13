@@ -143,7 +143,7 @@ None, aside from client-driven polling intervals set per-hook in individual modu
 
 ### 3.10 Events & messaging
 
-None. `ToastProvider` (react-hot-toast) is the closest thing to an app-wide event bus, but it's a one-way UI notification channel, not a message system.
+None. `ToastProvider` (react-toastify, called through the `@/app/utils/toast` wrapper, which keeps the `toast.success(msg, { id, duration })` / `toast.promise(p, { loading, success, error })` call shape) is the closest thing to an app-wide event bus, but it's a one-way UI notification channel, not a message system.
 
 ### 3.11 Authentication & authorization
 
@@ -161,6 +161,7 @@ None beyond `console.log("API token expired")` in the NextAuth `getIsTokenValid`
 
 - **Route groups as layout scoping**, a standard Next.js App Router pattern, used here specifically to give `(pages)` a server-side auth gate that `(auth-pages)` deliberately lacks.
 - **Convention-over-configuration grid building** — every feature module supplies a `buildXColumnDefs()` function with a consistent signature, letting `components/grid` renderers be shared across otherwise-unrelated domains (e.g., `status-bar.tsx` is generic enough to back both rider status and helpdesk status presentations in different `grid-props` files).
+- **Clickable-row hover bar** — a list whose rows open something (`Grid`'s `onRowClicked`; hover is switched off otherwise) shows a 3px primary-colour bar at the row's left edge on hover. It is one rule in `styles/global.css` (`.ag-row::before`, sticky so it survives sideways scrolling), so it applies to every module. Since AG Grid 36 a row is a flex container, which made that bar the only shrinkable item: it collapsed to nothing on any list whose columns fill the row or that has a pinned-left column (seen on Mandoob Activities; the Rider list was affected too), and on the remaining lists it pushed the cells 3px out of line with their headers. Fixed 2026-10-13 with `flex: none` + `margin-right: -3px`; checked against the real grid bundle in a headless browser (columns filling the row, spare room, pinned-left with sideways scroll, scrolled without pinning).
 - **Three-tier, non-unified permission checking** (§2.3) is itself a de facto architectural decision (or its accumulated absence) worth naming: there is no single `hasModuleAccess(module)` utility that `middleware.ts`, `sidebar.tsx`, and `useHasPermission` all call — each reimplements the check.
 
 ## 4. Risk & improvement analysis
@@ -204,3 +205,26 @@ Every `(pages)` request pays for a server-side `getServerSession` call plus the 
 - `/Payslip/[id]` is explicitly exempted from module-permission checks at the middleware layer, with no visible compensating identity check at this layer.
 - React Query is configured globally with `retry:false`/`refetchOnWindowFocus:false`, inherited by every hook in every module unless overridden.
 - No shared authorization utility exists; a permission-model change requires touching three independent call sites.
+
+## Design system (2026-10-13)
+
+The visual scale lives in one place: the `@theme` / `:root` blocks of `src/app/styles/global.css`. Code that can't use Tailwind utilities (the Ant Design theme, chart props) reads the same values from `src/app/constants/design-tokens.ts` — change the two together. Don't write arbitrary values (`text-[12.5px]`, `rounded-[14px]`, `hover:bg-[#e04a00]`); use the token.
+
+| Token | Values |
+|---|---|
+| Type (px) | `text-2xs` 11 · `text-xs` 12 · `text-body` 13 (form controls, grids, dense UI) · `text-sm` 14 · `text-base` 16 · `text-lg` 18 · `text-xl` 20 · `text-2xl` 24 · `text-3xl` 30. Font: Poppins everywhere. |
+| Brand | `bg-primary` / `text-primary` (`#ff5200`), `hover:bg-primary-hover` (`#e04a00`) |
+| Radius | `rounded-lg` 8 (controls, buttons) · `rounded-xl` 12 (cards) · `rounded-2xl` 16 (modals) · `rounded-full` (pills) |
+| Control height | `--control-h-sm` 32 (dense: grid toolbars, row actions) · `--control-h` 40 (forms, `Button`, search) · `--control-h-lg` 44 (touch) |
+| Elevation | `shadow-xs` (resting) · `shadow-sm` · `shadow-card` (cards) · `shadow-lg` / `shadow-xl` (menus, modals) |
+| Page title | `text-2xl` (list pages and the dashboard); entity headers on detail pages `text-lg`; modal title `text-lg` |
+
+Behaviour that now comes from shared code rather than each page:
+
+- **Focus.** One orange 2px ring for keyboard focus on any `a`, `button`, `[role=button|tab|menuitem|option]` (`:where(...):focus-visible` in `global.css`, specificity 0 — a component's own focus style wins). Inputs keep their ring (`form-styles.ts`).
+- **`Button`** (`components/button.tsx`): `md` and the default `fw` are 40px / 8px radius so a footer button sits level with the inputs above it (it was 46px / 12px); `sm` is 32px; disabled is a single 50% dim with no hover change.
+- **Inputs** are 16px below the `sm` breakpoint (`max-sm:text-base` in `INPUT_BASE`), otherwise iOS Safari zooms the page on focus.
+- **Navigation is real links.** `SidebarItem` renders `<Link href>` (with `aria-current="page"`) for pages and `<button aria-expanded>` for groups; the collapsed sub-item list is `inert`. The mobile drawer's `NavItem` and the sidebar profile block are `<button>`s. Previously all three were click-only `<div>`s — unreachable by keyboard, unnamed to screen readers, and not openable in a new tab.
+- **Pagination** buttons carry names (`First page`, `Previous page`, `Page 3`, …) and `aria-current` on the active page; row-action icons are 32px.
+
+Not changed (judgement calls): the red expiry chips on the Riders page stay saturated — using colour only for meaning is the stated UI preference, but which statuses deserve it is a product decision; the status-radio pills (`h-9`) and alert chips are chip-sized, not form controls.
