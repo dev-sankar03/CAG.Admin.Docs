@@ -386,3 +386,10 @@ None beyond the platform-wide FTP exception log.
 ## Changes 2026-10-13 (bug sheet #38)
 
 Rider list → Client Rider Status filter also offers **Churn** and **Clearance Completed**.
+
+## Changes 2026-10-13 (night) — bug sheet #15, #31, #39
+
+- **Rider documents without an expiry date were saved but never shown** (#31). `GetRiderByIdAsync` read documents with an INNER JOIN on `DocumentTypeExpiry`, and that row only exists when an expiry date was given — so such an upload answered "uploaded successfully" and then did not appear. Now a LEFT JOIN (also matched on `source = 'Rider'`). 8 existing QA documents become visible.
+- **A date on the rider can be removed** (#15). `RiderUpdateRequest.ClearDates` lists date fields to set to NULL (passport / licence expiry, work permit issued / expiry, food handlers expiry); a null property still means "not changed". The rider form sends it for a date the user emptied. A rider with no work permit expiry date is not in the Work Permit Expiry alert (the alert reads `Rider.workPermitExpiryDate`, not documents — which is why a rider with no documents could still be listed).
+- **Admin can delete a rider** (#39). `DELETE api/rider/{id}`: a rider still onboarding is deleted as before; any other rider only by an Admin (403 otherwise), not while working on a Client User ID, and the vehicle is released. Soft delete (`isActive = 0`, sign-in removed): the record stays under Record Status "In-Active". UI: rider page → ⋯ → *Delete rider* (Admins only).
+- `GET rider/{id}/performance/all` failed with "Subquery returns more than 1 row" for riders with several Sales Cash sheet rows in the month; the pending-dues subquery now takes the latest row.

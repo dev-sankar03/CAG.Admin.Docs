@@ -270,3 +270,10 @@ Vehicle image caching is correctly time-boxed (10min/30min), unlike [Partner Com
 The strip above the Vehicle list is now the same component as the Riders expiry chips (`AlertChip` / `ComplianceAlertsMenu`, `components/compliance-alerts-menu.tsx`): *Expired documents* (red, with the live dot), *Due within 30 days* (amber), *Due in 31–60 days* (neutral) and *Available quota* (a read-out, not clickable; red if negative). Counts, buckets and data are unchanged (`GET api/vehicle/expiry-alerts`, `GET api/dashboard/vehicles/quota`; inactive vehicles are still not counted).
 
 Clicking a chip opens the same style of dialog as the Riders alerts (`components/details/vehicle/vehicle-alerts-modal.tsx`): a status filter (All / Expired / Within 30 days / 31–60 days, opening on the chip that was clicked), a search box (vehicle, document, company, rider), the table with red / amber / plain status badges, and an Export to CSV. It replaces the previous list grouped by document. Read-only — expiry dates are still edited on the vehicle itself.
+
+## Add Vehicle wizard — Documents step and Review redesigned (2026-10-13, UI only)
+
+No API or payload change.
+
+- **Documents (step 4)** uses the shared `DocumentUploadPanel` (type, optional expiry date, drop zone, *Add document*, list of what was added) in place of the old uploader. The form field is still `vehicleDocument` (`{ code, file, expiryDate }`). *Skip* clears it.
+- **Review (step 5)** uses the shared `ReviewSubmitStep` (see [HR Workflow & Onboarding](hr-workflow-onboarding.md)) with four cards — Basic information, Stickering & compliance, Images, Documents — each with an *Edit* link to its step. The company is shown by name and each document by its type name, file and expiry date; the vehicle type is capitalised. Fields left empty are listed on one "Not provided" line instead of as blank rows.

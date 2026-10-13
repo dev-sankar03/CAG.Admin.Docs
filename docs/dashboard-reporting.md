@@ -276,3 +276,7 @@ Reviewed: main Dashboard (Overview, Rider Performance, Orders, Finance, Complian
 | Active-riders and onboarding trend (change over 30 days, like Companies / Vehicles have) | A daily rider-status snapshot — today only the current status exists |
 | Vehicle-quota utilisation trend and "time to full" | Historical onboarded counts per company |
 | Pending EMIs due-by-month outlook | Due amounts per future month (only *due this month* is returned) |
+
+## Changes 2026-10-13 (night) — bug sheet #29
+
+Overview → Total Vehicles shows **Active / Inactive** counts under the Assigned / Unassigned split (`ActiveVehicles`, `InactiveVehicles` on the overview DTO). The Vehicle list has a **Registered On** column, so the list's export includes it.

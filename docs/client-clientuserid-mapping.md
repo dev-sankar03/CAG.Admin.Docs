@@ -392,3 +392,14 @@ No role check on any endpoint in this module (platform-wide finding); slot reass
 - **Assignment while in the HR Workflow keeps the rider's status** (bug sheet #16) — "Active on assign" now applies only to riders who are not in the workflow; see [HR Workflow](hr-workflow-onboarding.md).
 - **Rider-side display** of the client status — see [Rider Management](rider-management.md). The Rider list's quick-assign dialog explains the Churn block and lets a rider whose ID is Clearance Completed pick any ID.
 - **Contract expiry template: all contracts** (bug sheet #32). `GET api/dashboard/compliance/expiry/template?sourceType=Client&status=full` lists every client contract in the caller's companies whatever its date (`ClientUserIdRepository.GetAllClientContracts`; a contract with no date shows "No expiry date"), and the upload accepts any of them. The alert list and its counts (expired + next 20 days) are unchanged; work-permit and Daftar templates still follow their alert lists. UI: the bulk-update dialog opens on **All contracts** for client contracts and is available even when nothing is expiring.
+
+## Changes 2026-10-13 (night) — deleting a Client User ID (bug sheet #24)
+
+`DELETE api/client-user-id/{id}` (`ClientUserIdService.DeleteClientUserIdAsync`):
+
+- **Assigned** (a holder, a part-time cover, or an active `ClientRiderConfig` row): refused — remove the rider first.
+- **Never assigned**: hard delete, as before, for anyone who can edit.
+- **Assigned in the past, nobody on it now**: Admin only, and a **soft delete** — `ClientUserId.isActive = 0` (the column existed and was always 1). The row and its `ClientRiderConfig` history stay, so payroll, attendance and sales cash of earlier months still resolve the ID. It leaves the Client User ID list, the Free ID and eligible pick-lists and the dashboard counts; `GET client-user-id/{id}` and every assignment action answer 404 for it.
+- **Adding the same number again** restores the deleted row (status Free ID, new client and contract expiry, history kept, status history "Restored") instead of failing as a duplicate.
+
+UI: the flyout offers Delete when the ID has no rider — to everyone for a never-assigned ID, to Admins for one with history.

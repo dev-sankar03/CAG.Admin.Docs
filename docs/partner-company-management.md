@@ -281,3 +281,15 @@ No role check on any endpoint — company creation, partner ownership-percentage
 The company list's row menu now shows each status action with an icon and a one-line explanation (*Mark as inactive — Put on hold, read-only* / *Mark as active — Allow changes again*), with a rule above Delete. `RowActionMenu.extraActions` takes an optional `description` and `icon` for this.
 
 **Mark as inactive asks first**: a confirmation dialog names the company and says what changes — the company, its partners and its documents become read-only; riders, vehicles and their documents are not affected. Cancel is focused, so Enter cannot confirm by accident. **Mark as active goes straight through**, since it only lifts the restriction. The API call and the 409 behaviour are unchanged.
+
+## Add Company wizard — Documents, Partners and Review steps redesigned (2026-10-13, UI only)
+
+No API, payload or validation change — the same `{ code, file, expiryDate }` documents and `{ firstName, lastName, percentage }` partners are collected and submitted as before.
+
+- **Documents (step 2)** uses the shared `DocumentUploadPanel` (`components/file-uploads/document-upload-panel.tsx`, see [Document Management](document-management.md)): pick the type, optionally an expiry date, drop or choose a file, press *Add document*; added documents are listed below with a remove button. The step is optional — *Skip* shows while nothing is added, *Next* once something is.
+- **Partners (step 3)** shows the ownership as a bar (owner + partners + unallocated) with a status line — *Fully allocated* / *X% still to allocate* / *Over by X%* — and a one-row add form (first name, last name, share %; Enter adds). The add form is hidden when the owner already holds 100%. *Next* stays disabled until the shares add up to exactly 100% (or the owner holds all of it). The validation rules and their toasts are unchanged.
+- **Review (step 4)** is `CompanyReviewStep` — three cards (Company, Ownership, Documents), each with an *Edit* link back to the step that owns it (1, 3, 2). The footer button reads *Create company*. The old Car / Bike quota rows are not shown: those inputs were removed from Add Company in bug sheet #18, and the stored value is always 0.
+
+## Changes 2026-10-13 (night) — inactive-company popup
+
+The API answers an inactive-company refusal with **400** (the middleware derives the status from the exception type), not 409 as written above. The UI interceptor tested for 409, so the popup never appeared on QA; it now matches on the message alone.

@@ -248,3 +248,7 @@ Nothing notable at current volumes (145 `LeaveRequest` rows per [architecture-ov
 - **"On leave today" is asked with Kuwait's calendar date** (`KuwaitDate.Today`, UTC+3) instead of `DateTime.UtcNow`: with a timestamp, a leave counted as ended from 00:00 UTC of its last day, so the rider left Vacation a day early (and a one-day leave never counted at all). Applies to the vacation sync, the per-rider recompute, return-from-vacation and the overdue list.
 - **A leave approved after its end date** (entered late) puts the rider into **Vacation Overdue** until it is closed — `MarkOverdueForEndedLeaveAsync`, run when a request is saved as Approved. It looks only at that request, so riders with an old approved request that was never closed are not moved, and a rider with another approved leave covering today stays on Vacation. Riders already Active with such a request before 2026-10-13 are not touched.
 - **Leave list** hides Closed requests by default (Status filter pre-set to every other status); pick Closed in the filter to see them.
+
+## Changes 2026-10-13 (night) — bug sheet #8
+
+`LeaveRequestService.UpdateAsync` now takes the rider from the saved request instead of the request body. When the body carried no usable rider id, the immediate status recompute was skipped and the rider only moved to Vacation at the next 5-minute background sync (seen on QA: approved 14:45:36, rider updated 14:49:36).
