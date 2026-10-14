@@ -280,3 +280,7 @@ Reviewed: main Dashboard (Overview, Rider Performance, Orders, Finance, Complian
 ## Changes 2026-10-13 (night) — bug sheet #29
 
 Overview → Total Vehicles shows **Active / Inactive** counts under the Assigned / Unassigned split (`ActiveVehicles`, `InactiveVehicles` on the overview DTO). The Vehicle list has a **Registered On** column, so the list's export includes it.
+
+## Changes 2026-10-14 — Remove from alerts (bug sheet #15)
+
+The expiry edit dialog of the alert lists (pencil on a row, or several selected rows) has **Remove from alerts** for the rider Work Permit and the vehicle Daftar lists: `PUT dashboard/compliance/expiry` with `expiryDate: null` clears the rider's `workPermitExpiryDate` / deletes the vehicle's VEHICLE_DFT `DocumentTypeExpiry` row, so the row leaves the alert until a date is entered again. A client contract always keeps a date (400).
