@@ -39,9 +39,9 @@ CAG's riders deliver under client-issued app accounts (e.g., a food-delivery pla
 
 **The data model, precisely:**
 
-- `ClientUserId` is a **slot**: one row per client-issued account. It carries `StatusId` (`ClientUserIdStatus`: 1 Active, 2 Client Suspended, 3 Churn, 4 Clearance Completed, 5 Free ID, 6 ID Issued for Part-Time), plus the denormalized `RiderId` (permanent holder), `TempRiderId` (temp cover), `IsAssigned`, and `ContractExpiry`. `StatusId` is never written directly by a caller — it's always derived by `RiderAssignmentService` from whether the slot has an active `ClientRiderConfig` and that row's `AssignmentType`.
+- `ClientUserId` is a **slot**: one row per client-issued account. It carries `StatusId` (`ClientUserIdStatus`: 1 Active, 2 Client Suspended, 3 Churn, 4 Clearance Completed, 5 Free ID, 6 ID Issued for Part-Time, 7 Not Working), plus the denormalized `RiderId` (permanent holder), `TempRiderId` (temp cover), `IsAssigned`, and `ContractExpiry`. `StatusId` is never written directly by a caller — it's always derived by `RiderAssignmentService` from whether the slot has an active `ClientRiderConfig` and that row's `AssignmentType`.
 - **Names (2026-10-01):** the client's wording is *Free ID* and *ID Issued for Part-Time*; the master table still says `FreeId` / `Working Part-Time` until `Database/Migrations/2026-10-01_ClientUserIdStatus_Names.sql` is run (the C# enum member stays `WorkingPartTime`). The UI shows its own names either way. **Vacation is not a Client rider status** — it is a Company rider status only, set by Leave Management (Phase II RM-05 / RM-06, decided 2026-10-01).
-- **Status list in the UI (2026-10-01):** the rider pages' *Client rider status → Change* menu (edit mode only) and the Client User ID flyout's *Client rider status* section list all six statuses. Only Suspend, Resume (→ Active, or → Free ID), Release (ID Issued for Part-Time → Free ID), Mark Churn and Clearance Completed are user actions and are clickable when allowed from the current status; Active, Free ID and ID Issued for Part-Time are set by the assignment operations (assign / end / assign TEMP) and are shown greyed out with the reason. Rules: `getStatusChangeActionKeys` in `components/details/client-user-id/client-user-id-status-rules.ts`.
+- **Status list in the UI (2026-10-01):** the rider pages' *Client rider status → Change* menu (edit mode only) and the Client User ID flyout's *Client rider status* section list all seven statuses. Only Suspend, Mark Not Working, Resume (→ Active, or → Free ID), Release (ID Issued for Part-Time → Free ID), Mark Churn and Clearance Completed are user actions and are clickable when allowed from the current status; Active, Free ID and ID Issued for Part-Time are set by the assignment operations (assign / end / assign TEMP) and are shown greyed out with the reason. Rules: `getStatusChangeActionKeys` in `components/details/client-user-id/client-user-id-status-rules.ts`.
 - `ClientRiderConfig` is a **per-assignment-period history** row: `(RiderId, ClientUserId, StartDate, EndDate, IsActive, AssignmentType, EndReason)`. `AssignmentType` (`PERMANENT`/`TEMP`) makes history self-describing — the single biggest gap in the prior model (§4.2 below). `EndReason` is one of `Ended`, `Switched`, `ClientSuspended`, `Churn`, `ReturnedToHome`, `Vacation`, `SlotDeleted`.
 - `ClientUserIdStatusHistory` is new: one row per status transition (`fromStatusId`, `toStatusId`, `effectiveDate`, `reason`, `changedBy`), giving an audit trail status changes previously had none of (§3.13's old gap).
 - `Rider.HireTypeId` (1 Full Time / 2 Part Time) is now set once at onboarding and never updated — `Rider.EmploymentType` remains the *current* type, which can diverge from hire type over a rider's tenure.
@@ -59,7 +59,7 @@ A duplicate-key error (1062) from I1–I3's unique indexes is caught and turned 
 **Operations, by where they're triggered:**
 
 *Rider page* (`RiderAssignmentService.AssignAsync` / `EndAsync` / `SwitchAsync`):
-- **Assign Permanent** — slot must be FreeId (with no different existing holder) or Clearance Completed (replaces the former holder); rider must be Full Time, have no active assignment, and not already hold another live slot (I3).
+- **Assign Permanent** — slot must be FreeId (with no different existing holder), the rider's own **Not Working** slot (they return to it), or Clearance Completed (replaces the former holder); rider must be Full Time, have no active assignment, and not already hold another live slot (I3).
 - **Assign Temp** — slot must be FreeId and not the rider's own home slot; rider must be Part Time, or a Full Time rider whose own home slot is Client Suspended.
 - **End** — ends the rider's active assignment; slot → FreeId (its `riderId` is *not* cleared — see below).
 - **Release** (`PUT api/client-user-id/{id}/release`, `RiderAssignmentService.ReleaseAsync`, added 2026-10-03) — the same as *End* on the covering part-time rider, started from the ID: only for an *ID Issued for Part-Time* slot; ends the active TEMP assignment (reason `Ended`), slot → Free ID, the rider → Company status Free ID. In the UI it is *Client rider status → Free ID* on the Client User ID flyout or the rider page when the ID is in *ID Issued for Part-Time*. Before this, the only ways to take the ID back from the ID's side were Suspend / Churn, which also change the client's status for the ID.
@@ -72,11 +72,12 @@ A duplicate-key error (1062) from I1–I3's unique indexes is caught and turned 
 - Only `Rider.EmploymentType` changes; `HireTypeId` (onboarding type) never does.
 - Payroll is unaffected by this switch: `PayrollRepository.GetDraftPayrollAsync` classifies full/part-time pay from the rider's latest assignment (permanent holder of the slot vs. not), not from `EmploymentType`.
 
-*Client User ID module* (`RiderAssignmentService.SuspendAsync` / `ResumeAsync` / `MarkChurnAsync` / `MarkClearanceCompletedAsync`):
-- **Suspend** (from Active/FreeId/ID Issued for Part-Time) — ends any active assignment (reason `ClientSuspended`) and moves the slot to Client Suspended.
-- **Resume** (from Client Suspended) — two-step: `GET .../resume-preview` reports the holder and whether they're currently covering another slot; the caller then confirms whether to **return the holder** (ends their other assignment, reason `ReturnedToHome`, and reinstates them here as PERMANENT → Active) or **just free the slot** → FreeId.
+*Client User ID module* (`RiderAssignmentService.SuspendAsync` / `MarkNotWorkingAsync` / `ResumeAsync` / `MarkChurnAsync` / `MarkClearanceCompletedAsync`):
+- **Mark Not Working** (`PUT api/client-user-id/{id}/not-working`; from Active, or from a Free ID that still has its holder; the slot must have a permanent holder) — the holder is temporarily off work (vehicle issue, vacation, …). Ends any active assignment (reason `NotWorking`), slot → Not Working, holder kept. Nobody else can be assigned to it (permanent or temp); the vehicle stays with the rider. Added 2026-10-19, see below.
+- **Suspend** (from Active/FreeId/ID Issued for Part-Time/Not Working) — ends any active assignment (reason `ClientSuspended`) and moves the slot to Client Suspended.
+- **Resume** (from Client Suspended or Not Working) — two-step: `GET .../resume-preview` reports the holder and whether they're currently covering another slot; the caller then confirms whether to **return the holder** (ends their other assignment, reason `ReturnedToHome`, and reinstates them here as PERMANENT → Active) or **just free the slot** → FreeId.
 - **Mark Churn** (from anything but Churn/Clearance Completed) — ends any active assignment (reason `Churn`) and moves the slot to Churn.
-- **Clearance Completed** (from Churn only) — a terminal status change, no rider side effects.
+- **Clearance Completed** (from any status except itself — no longer needs Churn first, 2026-10-17/19) — ends any active assignment (reason `ClearanceCompleted`) and releases that rider's vehicle, then moves the slot to Clearance Completed.
 - **Edit** — `contractExpiry`/`clientId` only, never rider fields.
 - **Delete** — hard delete, rejected (with a message pointing at Churn/Clearance Completed instead) if the slot has any `ClientRiderConfig` history at all.
 
@@ -106,7 +107,18 @@ stateDiagram-v2
     FreeId --> Churn: Mark Churn
     WorkingPartTime --> Churn: Mark Churn
     ClientSuspended --> Churn: Mark Churn
+    Active --> NotWorking: Mark Not Working
+    FreeId --> NotWorking: Mark Not Working (holder kept)
+    NotWorking --> Active: Resume (return holder) / Assign holder
+    NotWorking --> FreeId: Resume (just free)
+    NotWorking --> ClientSuspended: Suspend
+    NotWorking --> Churn: Mark Churn
     Churn --> ClearanceCompleted: Clearance Completed
+    Active --> ClearanceCompleted: Clearance Completed
+    FreeId --> ClearanceCompleted: Clearance Completed
+    WorkingPartTime --> ClearanceCompleted: Clearance Completed
+    ClientSuspended --> ClearanceCompleted: Clearance Completed
+    NotWorking --> ClearanceCompleted: Clearance Completed
     ClearanceCompleted --> Active: Assign Permanent (replaces former holder)
 ```
 
@@ -403,3 +415,24 @@ No role check on any endpoint in this module (platform-wide finding); slot reass
 - **Adding the same number again** restores the deleted row (status Free ID, new client and contract expiry, history kept, status history "Restored") instead of failing as a duplicate.
 
 UI: the flyout offers Delete when the ID has no rider — to everyone for a never-assigned ID, to Admins for one with history.
+
+## Changes 2026-10-19 — Client rider status "Not Working"; Clearance without Churn (bug 49)
+
+Client request: a rider who has their own Client User ID but is temporarily not working (vehicle issue, vacation or another reason) is to be marked **Not Working** instead of Free ID; and Clearance Completed must be possible without going through Churn.
+
+Already on `develop` before this change (2026-10-17): status row 7 *Not Working* (`2026-10-17_ClientUserIdStatus_NotWorking.sql`, runbook #32, on Dev and QA), `ClientUserIdStatuses.NotWorking`, its badge / filters / dashboard count, and the API no longer refusing Clearance from a status other than Churn. Nothing could set the status yet, and the UI still offered Clearance only from Churn.
+
+**Mark Not Working** — `PUT api/client-user-id/{id}/not-working` (`{ date, reason? }`), `RiderAssignmentService.MarkNotWorkingAsync`:
+- Needs a permanent holder (`ClientUserId.riderId`); allowed from **Active** or from a **Free ID** that still names its holder (the old way of recording this). From *ID Issued for Part-Time* it is refused — release the part-time rider first. Date not in the future (Kuwait calendar) and not before the active assignment's start.
+- Ends the active assignment (`endReason = 'NotWorking'`), slot → Not Working, history row with the reason. `isAssigned = 0`, holder kept.
+- **The vehicle stays with the rider** and the company status is not changed — unlike End / Suspend / Churn, which release the vehicle.
+- The ID is reserved for its holder: it is not in the Free ID / temporary pick-lists, and `UX_CUI_LiveHolder` still counts it (the holder can't take another ID).
+- **Back to work:** *Resume* on the ID (now also from Not Working; *Return holder* → Active, *Just free the ID* → Free ID with the holder kept), or *Assign* on the rider — the eligible permanent list includes the rider's own Not Working ID, so Quick Assign returns them to it.
+- From Not Working the ID can also be Suspended, Churned or cleared.
+- Rider activity history: "Client User ID marked Not Working".
+
+**Clearance Completed without Churn** — `MarkClearanceCompletedAsync` refuses only Clearance → Clearance. Because the ID can now still have a rider on it, an active assignment is ended (`endReason = 'ClearanceCompleted'`) and that rider's vehicle is released, as Churn would have done; before this fix the develop version left the assignment open on a Clearance Completed ID, which is offered as a permanent ID to other riders.
+
+**UI** (`client-user-id-status-rules.ts`): the *Change* menu on the rider page and the Client User ID flyout list *Not Working* ("the holder is off work for now — ends the assignment, the ID stays theirs") from Active, and from Free ID when the ID has a holder (the flyout checks `permanentRider`; the rider page assumes the rider is the holder). *Clearance Completed* is offered from every status. *Resume* is offered from Not Working. The Rider list's Client Rider Status column explains Not Working on hover. After Mark Not Working and Clearance the rider screens refresh too.
+
+Existing riders parked on Free ID are not moved (Dev: 145 Free IDs still name a holder) — use *Mark Not Working* on the ones that are really off work.

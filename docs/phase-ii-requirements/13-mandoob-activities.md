@@ -268,3 +268,12 @@ Behaviour that changed with it:
 No API or data change. Checked on a developer build at 1366px and at phone width (sections, header
 button, `?tab=`, no sideways page scroll). Not re-checked: adding a follow-up and uploading a file
 from the new layout — the handlers are unchanged from the version tested on 2026-10-12.
+
+## Changes 2026-10-19 — Follow-up Dashboard: several companies at once
+
+Client request: pick several companies on the Mandoob Follow-up Dashboard to view and compare them together. **UI only** — the dashboard already loads every activity the user can see and filters in the browser.
+
+- The single *Company* dropdown is replaced by the multi-company picker of the main dashboard (`CompanyScopePicker`, `variant="labelled"`), listing the companies that have activities, by code; applies on **Apply**; nothing picked = all.
+- Summary cards, Follow-ups due, Overdue, Upcoming due and Activities by type cover the picked companies together.
+- New **Company comparison** card, shown whenever more than one company is in view (all, or several picked): one row per company with Overdue, Due Today, Follow-ups due, Upcoming (next 14 days), Open, Pending, Completed and Total — the same rules as the cards and panels — sorted by what needs chasing first (Overdue, then Due Today, then Follow-ups due).
+- The cards' and panels' links still open the full activity list without the company filter (unchanged).

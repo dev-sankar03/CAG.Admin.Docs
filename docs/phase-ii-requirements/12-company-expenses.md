@@ -234,3 +234,12 @@ creator under *Modified by*.
 
 **Left on Dev** — three October 2026 expenses with reference `E2E-INV-001` / `E2E-INV-002`
 (AMK, BRKS), their bills, and the inactive category *E2E Test Category*.
+
+## Changes 2026-10-19 — Analysis Dashboard: several companies at once
+
+Client request: pick several companies on the Analysis Dashboard to view and compare them together. **UI only** — `GET api/company-expense/analysis` already took a `companyIds` list (limited to the caller's companies by `CompanyExpenseService`).
+
+- The single *Company* dropdown is replaced by the multi-company picker the main dashboard uses (`components/dashboard/company-scope-picker.tsx`, new `variant="labelled"` so it lines up with Month / Year). Search, Select all, Clear; the choice applies on **Apply**. Nothing picked = all companies, as before.
+- The cards, Company-wise Monthly Expenses table and Top company / Top category cover the picked companies together.
+- **Compare mode — 2 to 8 companies picked** (one per chart colour): the page subtitle reads "Comparing A, B, …"; *Monthly Expense Trend* draws one line per company with a legend and a per-company tooltip; *Category-wise Expenses* becomes a table, categories × picked companies with row and column totals. With 9 or more picked, the trend shows the combined line and says so, and the category list stays the combined ranked list.
+- A picked company with no expenses in the year has no row in the monthly table (as before) and shows "—" in the comparison columns.

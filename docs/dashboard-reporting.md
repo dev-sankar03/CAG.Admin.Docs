@@ -284,3 +284,20 @@ Overview → Total Vehicles shows **Active / Inactive** counts under the Assigne
 ## Changes 2026-10-14 — Remove from alerts (bug sheet #15)
 
 The expiry edit dialog of the alert lists (pencil on a row, or several selected rows) has **Remove from alerts** for the rider Work Permit and the vehicle Daftar lists: `PUT dashboard/compliance/expiry` with `expiryDate: null` clears the rider's `workPermitExpiryDate` / deletes the vehicle's VEHICLE_DFT `DocumentTypeExpiry` row, so the row leaves the alert until a date is entered again. A client contract always keeps a date (400).
+
+## Changes 2026-10-19 — Finance Summary: Rider Expenses, new Payroll formula
+
+Client request: show the rider expense count and amount in the Finance Summary, and use their calculation for Payroll. `GET api/dashboard/finance/overview` (`DashboardService.GetFinanceOverviewAsync`, `DashboardRepository.GetCompanyMonthFinanceAsync`) now works out:
+
+| Figure | Calculation |
+|---|---|
+| **Total Revenue** | Total invoice amount — `CompanyPerformance.FinalPayment` by `PerformanceMonth` (unchanged) |
+| **Rider Expenses** (amount + entry count) | `RiderExpense` ledger entries by `EntryDate` in the period, for the companies in scope. Same sign rule as payroll deductions (`sp_process_rider_payroll`): **Incentive** entries count negative (a credit to the rider), negative entries (reversals) reduce the total. **Previous Balance** entries are left out — payroll writes them as the carry-forward of a shortfall whose entries were already counted. Paid and unpaid entries both count. |
+| **Total Payroll** | Total Revenue − Rider Expenses. **No longer read from `Payroll.netPay`** — the `Payroll` table is not queried by this endpoint any more. |
+| **Net Profit** | Total Revenue − Total Payroll − Company Expenses (unchanged formula; with the new Payroll it equals Rider Expenses − Company Expenses) |
+
+The same formulas apply per month (`monthlyTrend`) and per company (`companies`). New fields: `totalRiderExpenses`, `riderExpenseCount` on the response; `riderExpenses`, `riderExpenseCount` on each `monthlyTrend` and `companies` row.
+
+UI (`components/dashboard/finance-overview-section.tsx`): five tiles — Total Revenue ("Total invoice amount"), **Rider Expenses** (amount, "N entries"), Total Payroll ("Revenue − rider expenses"), Company Expenses, Net Profit. The company-wise table has a **Rider Expenses** column with the entry count under each amount (and in the Total row); a company with rider expense entries but no revenue now counts as active. The trend chart's tooltip lists Rider Expenses with its count; it is not drawn as a bar (Payroll already shows Revenue less it).
+
+**Behaviour to know:** a month whose client statement (`CompanyPerformance`) is not uploaded yet has Revenue 0, so Payroll shows as **negative** (−Rider Expenses) and Net Profit equals Rider Expenses − Company Expenses. Dev, 2026: no `CompanyPerformance` rows, so every month with rider expenses shows negative payroll (e.g. Sep: 5 entries, 371.000 → Payroll −371.000). Sales-cash pending dues and vehicle EMI, which payroll also deducts, are not part of Rider Expenses (they are not ledger entries).
