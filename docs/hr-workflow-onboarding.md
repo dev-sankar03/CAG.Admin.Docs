@@ -250,3 +250,8 @@ Nothing notable — low-volume, request-driven operations (2,379 `HrWorkflow` ro
 ## Review step redesigned for all three onboarding wizards (2026-10-13, UI only)
 
 The shared review (`components/modals/rider/review-submit-form.tsx`, used by Add Rider and Add Vehicle; Add Company has its own `CompanyReviewStep` built from the same `ReviewCard` / `ReviewRow`) is now a stack of cards: label on the left, value beside it (stacked on a phone), yes/no shown as *Yes* / *No*, files as name chips, lists of records one per line. A card whose section supplies `onEdit` shows an *Edit* link that jumps back to that step. Only the fields that were filled in become rows; the rest are named on a single "Not provided: …" line. A leading "is" is dropped from yes/no labels ("Is assigned" → "Assigned"). Props and exports of `ReviewSubmitStep` are unchanged, so the rider wizard needed no code change.
+
+## Changes 2026-10-23 — bug sheet #51, #16
+
+- **Remarks can be saved on any step** (#51): Civil ID, Work permit issued / issued date / expiry and Company were still required on every save; like the task fields they are now required only when the step is completed.
+- **Removing a temporary ID from the last step** (#16): clearing the Client user ID and saving without completing ends the rider's TEMP assignment (`PUT rider/{id}/client-assignment/end`, today's date — the history is kept). A permanent assignment is never ended from here.

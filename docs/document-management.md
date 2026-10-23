@@ -267,3 +267,7 @@ The three upload forms (rider / vehicle / company Documents tab, the add-rider /
 ## Shared upload panel for the add wizards (2026-10-13, UI only)
 
 `components/file-uploads/document-upload-panel.tsx` (`DocumentUploadPanel`) is the document step of the Add Company and Add Vehicle wizards: document type (from `useGetDocumentTypes` for the module's header code), optional expiry date, a keyboard-accessible drop zone (`.pdf .jpg .jpeg .png .doc .docx`), an *Add document* button (disabled until a type and a file are chosen) and a list of added documents with a remove button. If the expiry date is left blank and an earlier document of the same type has one, that one is reused. `DocumentsUploader` is unchanged and still used elsewhere (HR Workflow step documents, the details-page Documents tabs). The upload API and the "expiry is optional" rule above are unchanged.
+
+## Changes 2026-10-23 — bug sheet #60
+
+Selfies are left out of both expiring-document lists (`DocumentService.GetAllDocuments` and `GetExpiringDocumentsAsync`, `DocumentType.code <> 'RAIDER_SELFIE'`): a selfie is a photo, not a document that expires. Older selfie uploads still carry expiry rows (QA: 95, 36 of them past), which no longer show anywhere.

@@ -402,6 +402,7 @@ Requested by the client 2026-10-14: track every change to a rider (edits, expens
 - **Reading** — `GET api/rider/{riderId}/activities?page=&pageSize=` (page size ≤ 200) → `RiderActivityService`: Admin only (403 otherwise), caller's companies, newest first.
 - **UI** — rider page → **Activities** section (shown to Admins only): action, date and time, user, area, the changed fields as "field: old → new", and *Show details* for the values sent; *Show older* loads 50 more.
 
+<<<<<<< Updated upstream
 ## Changes 2026-10-19 — quick expense entry (shortcut)
 
 Requested by the client: entering a day's rider expenses took four steps per rider (Rider list → rider page → *View full details* → Expenses tab → *Add entry*). There is now a direct shortcut. **UI only — no API or database change**; it calls the same `POST api/rider-expense` as the Expenses tab.
@@ -411,3 +412,14 @@ Requested by the client: entering a day's rider expenses took four steps per rid
 - **Selected rider panel** — company, company status, pending deductions (unpaid positive ledger entries) and the three most recently added entries, so the same expense isn't entered twice; *Ledger ↗* opens the rider's Expenses tab in a new tab. A rider without a company shows the same "no company yet" note as the Expenses tab and Save is disabled (the API would refuse it anyway).
 - **Save & add another** — saves, then clears rider (unless fixed), amount, *Deduct in*, reference and remarks, keeps Date and Category, and puts the cursor back in the rider search. Entries saved this way are listed under *Added in this window* until the dialog is closed. **Save** saves and closes.
 - Not added to Company Expenses: rider ledger entries are gated by the Rider module permission, and Company Expenses (`CAG_COMPANY_EXPENSE`) is a separate module.
+=======
+## Changes 2026-10-23 — bug sheet #59, #44, #15
+
+- **Salary type / subcategory are saved with Save changes** (#59). On the Overview edit they used to call `PUT rider/{id}/order-category` the moment a value was picked, without touching the edited data — so *Save changes* stayed disabled and the change looked like it saved itself. They now change the edited data like every other field; Save calls the order-category endpoint first (when either changed) and then the rider update (when anything else changed). Cancel reverts them.
+- **Assign / Switch Client User ID dialog** (#44): *Temporary* is offered only when the API would accept it — a Part Time rider, a rider still in the HR Workflow, or a Full Time rider whose own ID is Client Suspended (same rule as `RiderAssignmentService`). Otherwise only Permanent is shown, with a hint to change the Employment type to Part Time first. On QA every reported failure (17 between 13 and 22 Oct) was a Full Time rider refused a temporary ID.
+- **Rider expiry dates behind their documents** (#15): uploads made before the 2026-10-17 document → rider expiry sync left the rider's Passport / Work Permit / Licence / Food Handlers date empty or older than the document (QA: 331 values). Data script `2026-10-23_BackfillRiderExpiryFromDocuments.sql` copies the document date across where the rider's is empty or older. The Overview's Passport / Licence / Work Permit rows read these rider dates (filled from onboarding or edits), not the document list.
+
+## Changes 2026-10-23 — rider dashboard / photo for riders without a company
+
+The rider dashboard (GET rider/{id}/dashboard) and the profile photo refused a rider with no company yet (mostly onboarding riders) with 403 "You can only view riders from companies assigned to you", while the rider list and rider page show them. Both checks now also accept companyId IS NULL. Seen on QA for RD261687–RD261693 and others.
+>>>>>>> Stashed changes
