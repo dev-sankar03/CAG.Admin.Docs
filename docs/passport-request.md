@@ -183,3 +183,13 @@ Nothing notable (`PassportRequest` at 0 rows per [architecture-overview.md](arch
 ## Changes 2026-10-12 (bug sheet 13–33)
 
 - **New status "Submitted"** between Passport Received and Closed (bug sheet #27): Passport Requested → Approved → Passport Collected By Rider → Passport Received → **Submitted** → Closed. `PassportRequest.status` is an ENUM, extended by `2026-10-12_PassportRequestStatus_Submitted.sql` (value appended at the end; step order comes from the UI's `PASSPORT_FLOW`). UI only otherwise: enum, flow, status metadata, a new tab, and the transitions (Supervisor role 4 and Admin: Received → Submitted → Closed). The API stores the status by name and needed no change. Run the script before the UI deploy.
+
+## Changes 2026-10-24 — workflow access follows the permission, not the role
+
+Requested by the client: HR (and Helpdesk users) must be able to run the whole passport workflow. Before, the request page hard-coded it by role: HR (3) could only approve / reject, Supervisor (4) did Approved → Collected by rider → Received → Submitted → Closed, Admin (1) everything, every other role nothing — so the Permissions screen could not change it.
+
+Now (`(details)/Passport-Request/[ticketId]/page.tsx`, `getAllowedStatuses`) anyone with **Edit on Passport Request** (Admin → Permissions) can move a request to its next status, in the same order as before; riders never can. Grant or remove workflow access per role in Admin → Permissions.
+
+- QA levels when this was written: Admin Edit, HR Edit, **Supervisor View** (Supervisors lose the post-approval buttons unless given Edit), Rider Edit (riders raise requests; the buttons stay hidden for them), others none.
+- "Helpdesk" is not a role in the system (only a module) — give Edit to whichever role those users have, or create a Helpdesk role.
+- The API (`PUT api/passport-request/{ticketId}`) still checks neither role nor module permission; the rule is in the UI only.
