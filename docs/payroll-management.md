@@ -292,3 +292,7 @@ The rider-processing loop inside `sp_generate_company_payroll` is strictly seque
 - **A second confirmed defect, found by reading the table DDL directly**: the persisted `Payroll.netPay` column is a generated column that only computes `grossEarnings - totalExpenses` — it silently omits the EMI deduction that the stored procedure's in-memory net-pay formula includes, so every displayed payslip overstates take-home pay for riders with an active vehicle loan.
 - Per-rider transaction isolation with catch-log-continue error handling is a genuinely well-designed resilience pattern, and `PayrollErrorLog` is a materially better observability mechanism than the rest of the platform's logging.
 - No background job — generation is synchronous, sequential, and can take minutes for a large company.
+
+## Changes 2026-10-24 — newest vehicle on the payroll header (bug sheet #45)
+
+Script #36 `2026-10-24_sp_process_rider_payroll_LatestVehicle.sql` (Dev only so far): the header insert's `LEFT JOIN RiderVehicleConfig` takes the rider's newest active row only (`riderVehicleConfigId = MAX(...) WHERE status = 1`), so a rider holding two vehicles gets one header. The body is otherwise identical to the 2026-10-18 PayCover version (checked by MD5 of the live definition on Dev and QA). The draft payroll query in `PayrollRepository` uses the same rule. The script contains `DELIMITER` — run it in HeidiSQL / mysql.

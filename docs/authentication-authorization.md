@@ -380,3 +380,7 @@ Login performs two sequential-ish awaited operations (permission fetch + company
 - Signing secrets are shared verbatim across dev/QA/prod and committed to source control.
 - No lockout, no rate limiting, no audit trail for failed logins, no password policy enforced in this module.
 - Deactivated accounts and accounts with zero assigned permissions are both explicitly blocked at login with distinct user-facing messages.
+
+## Module CAG_CASH_COLLECTION (2026-10-24, bug sheet #53)
+
+New permission row *Cash Collection* (`ModulePermissionModel.CashCollection`, UI field `cashCollection`). Enforced server-side in `CashCollectionService`; confirming receipt additionally needs the Admin role. See [Cash Collection](cash-collection.md).

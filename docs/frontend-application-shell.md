@@ -228,3 +228,8 @@ Behaviour that now comes from shared code rather than each page:
 - **Pagination** buttons carry names (`First page`, `Previous page`, `Page 3`, …) and `aria-current` on the active page; row-action icons are 32px.
 
 Not changed (judgement calls): the red expiry chips on the Riders page stay saturated — using colour only for meaning is the stated UI preference, but which statuses deserve it is a product decision; the status-radio pills (`h-9`) and alert chips are chip-sized, not form controls.
+
+## GenericPage — activity log and audit columns (2026-10-24, bug sheet #42)
+
+- `activityModule` — shows the module's *Activity log* button (Admins only) next to the page actions. See [Activity history](activity-history.md).
+- `showAuditColumns` — adds Created By / Updated By (and the two dates, hidden) before the grid's Actions column.

@@ -281,3 +281,15 @@ No API or payload change.
 ## Changes 2026-10-24 — document columns in the export (bug sheet #47)
 
 The list export has one column per document type of the module, like the rider export: the expiry date (DD/MM/YYYY), "Held (no expiry)" when the document was filed without a date, or blank when the record does not hold it (filter on blank to find missing documents). Every type gets a column, including types nobody holds yet. Data: GET api/document/export-columns?source=Vehicle|Company (DocumentService.GetExportColumnsAsync; the caller's companies; vehicles must be active). The UI appends the columns in utils/csv-export withDocumentColumns.
+
+## Changes 2026-10-24 — a rider may hold more than one vehicle (bug sheet #45, requirement)
+
+Branch `feature/phase2_requirements` (API + UI), 2026-10-24 — not on develop / QA yet.
+
+For a second vehicle while the first is a total loss or in an insurance claim — the first stays linked to the rider for tracking.
+
+- **API** — `RiderService.UpdateVehicleAsync` no longer refuses "Rider is already assigned to another vehicle". A vehicle still has at most one rider. The **newest active** `RiderVehicleConfig` row (highest id) is the vehicle the rider works on: every rider-side join (`RiderRepository` rider details / list, `RiderListQueryBuilder`, `PayrollRepository` draft, and `sp_process_rider_payroll` — script #36) now picks that row instead of "any active row", so a rider is never listed twice. Dev already had 26 riders with 2–3 active rows from old data; they now show once.
+- `ReleaseVehicleAsync` (suspend / terminate / cancel, end of a client assignment) releases **every** vehicle the rider holds.
+- `GET api/rider/{riderId}/vehicles` — vehicles the rider holds now, newest first (`RiderVehicleDto`, company-scoped through the rider).
+- **UI** — vehicle page → *Assigned rider* lists all active riders (those without a vehicle first; others marked "already has VH…"). Rider page → *Vehicle* tab: an **Other vehicles** card lists the older vehicles with *Open* / *Unassign*, and lets you assign another vehicle.
+- Tested on Dev (service level): second vehicle assigned, rider shows the newest once, release frees both; data restored.

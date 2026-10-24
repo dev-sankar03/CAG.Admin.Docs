@@ -422,3 +422,8 @@ Requested by the client: entering a day's rider expenses took four steps per rid
 ## Changes 2026-10-23 — rider dashboard / photo for riders without a company
 
 The rider dashboard (GET rider/{id}/dashboard) and the profile photo refused a rider with no company yet (mostly onboarding riders) with 403 "You can only view riders from companies assigned to you", while the rider list and rider page show them. Both checks now also accept companyId IS NULL. Seen on QA for RD261687–RD261693 and others.
+
+## Changes 2026-10-24 (requirements, branch `feature/phase2_requirements`)
+
+- **Second vehicle** (bug sheet #45): Vehicle tab → *Other vehicles* card; the tab's main vehicle is the newest assignment. See [Vehicle Management](vehicle-management.md).
+- **Free ID days count** in the *Assign / Switch Client User ID* dialog (bug sheet #46). See [Client / Client User ID mapping](client-clientuserid-mapping.md).

@@ -243,3 +243,16 @@ Client request: pick several companies on the Analysis Dashboard to view and com
 - The cards, Company-wise Monthly Expenses table and Top company / Top category cover the picked companies together.
 - **Compare mode — 2 to 8 companies picked** (one per chart colour): the page subtitle reads "Comparing A, B, …"; *Monthly Expense Trend* draws one line per company with a legend and a per-company tooltip; *Category-wise Expenses* becomes a table, categories × picked companies with row and column totals. With 9 or more picked, the trend shows the combined line and says so, and the category list stays the combined ranked list.
 - A picked company with no expenses in the year has no row in the monthly table (as before) and shows "—" in the comparison columns.
+
+## Rider Expense Analysis (bug sheet #56, 2026-10-24)
+
+Branch `feature/phase2_requirements` (API + UI), 2026-10-24 — not on develop / QA yet. The existing Company Expense figures are unchanged; a **Rider Expense Analysis** section is added below them on the Analysis Dashboard, with the same company / month / year filters.
+
+- `GET api/company-expense/analysis/rider?year=&companyIds=` (`CompanyExpenseService.GetRiderExpenseAnalysisAsync`, Company Expenses View, company-scoped) — read from the RiderExpense ledger:
+  - **Booked** per company × month × category (entry date) — new amounts paid / owed for riders. Payroll carry-forward rows (`Source = 'Payroll'`) and cash-collection credits (`Source = 'CashCollection'`, #53) are left out.
+  - **Deducted** — rows claimed by a payroll, by its pay month.
+  - **Carried forward** — the shortfall a payroll posted as *Previous Balance* (dated the 1st of the next month), booked against the month it came from. E.g. 500 pending, 300 deducted → 200 carried forward.
+  - **Outstanding now** — rows not yet claimed by a payroll (`PayrollId IS NULL`), per category.
+  - **Days** — booked per day, for the daily trend.
+- UI (`components/company-expense/rider-expense-analysis.tsx`): four tiles (booked, deducted, carried forward, outstanding), category table (booked / deducted / outstanding), daily trend for a month or monthly booked-vs-deducted for the year, and **Returnable vs Non-returnable** — rider expenses against company expenses, month by month.
+- Traffic fines / Akama renewal: "paid by the company for the rider" = booked; "recovered from salary" = deducted.

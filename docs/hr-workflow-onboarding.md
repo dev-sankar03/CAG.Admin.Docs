@@ -255,3 +255,7 @@ The shared review (`components/modals/rider/review-submit-form.tsx`, used by Add
 
 - **Remarks can be saved on any step** (#51): Civil ID, Work permit issued / issued date / expiry and Company were still required on every save; like the task fields they are now required only when the step is completed.
 - **Removing a temporary ID from the last step** (#16): clearing the Client user ID and saving without completing ends the rider's TEMP assignment (`PUT rider/{id}/client-assignment/end`, today's date — the history is kept). A permanent assignment is never ended from here.
+
+## Changes 2026-10-24 — Free ID days count in the Client User ID step (bug sheet #46)
+
+Branch `feature/phase2_requirements` (API + UI), 2026-10-24 — not on develop / QA yet. The Client User ID step's list of free IDs is LIFO (most recently freed first) and each option shows how long the ID has been free ("freed today" / "12d"); see [Client / Client User ID mapping](client-clientuserid-mapping.md).
