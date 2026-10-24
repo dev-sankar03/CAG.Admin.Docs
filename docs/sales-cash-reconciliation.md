@@ -271,3 +271,7 @@ Nothing notable at current volumes (`SalesCashEntry` 1,390 rows, `SalesCashDetai
 ## Changes 2026-10-13 (night) — bug sheet #23
 
 `GET sales-cash/entry/export` accepts `fromDate` / `toDate` (at most 3 months) as an alternative to `month`; the export dialog offers *One day* (default, today) or *Whole month*. The workbook has a second sheet, **Day-wise**: per date, Day Sales and Day Collection from the imported sheet, and the number and total of entries collected (Cash / Online).
+
+## Changes 2026-10-24 — date-wise totals (bug sheet #23)
+
+Since 2026-10-17 the import writes one SalesCashDetails row per rider per day column of the sheet (Yuvaraj). Every such row carried the sheet's final month-to-date Total Sales / Total Collection / Pending, so a rider showed the same totals on every date. Now each day's row carries the totals as of that day: Total Sales and Total Collection are the running sums of the day columns (that is how the sheet itself defines them), Pending = Opening Balance + Total Sales - Total Collection. Incentives, adjustments and the cash / bank split have no per-day breakdown, so they stay on the upload date's row only, which keeps the sheet's own totals exactly. Rider assignments are looked up for the whole month up to the upload date, so a rider who left the Client User ID earlier in the month keeps those days, and a row is no longer rejected just because nobody holds the ID on the upload date. Script 2026-10-24_SalesCashDetails_DateWiseTotals.sql corrects the rows already imported from October 2026 on.

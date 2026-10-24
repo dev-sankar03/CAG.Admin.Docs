@@ -277,3 +277,7 @@ No API or payload change.
 
 - **Documents (step 4)** uses the shared `DocumentUploadPanel` (type, optional expiry date, drop zone, *Add document*, list of what was added) in place of the old uploader. The form field is still `vehicleDocument` (`{ code, file, expiryDate }`). *Skip* clears it.
 - **Review (step 5)** uses the shared `ReviewSubmitStep` (see [HR Workflow & Onboarding](hr-workflow-onboarding.md)) with four cards — Basic information, Stickering & compliance, Images, Documents — each with an *Edit* link to its step. The company is shown by name and each document by its type name, file and expiry date; the vehicle type is capitalised. Fields left empty are listed on one "Not provided" line instead of as blank rows.
+
+## Changes 2026-10-24 — document columns in the export (bug sheet #47)
+
+The list export has one column per document type of the module, like the rider export: the expiry date (DD/MM/YYYY), "Held (no expiry)" when the document was filed without a date, or blank when the record does not hold it (filter on blank to find missing documents). Every type gets a column, including types nobody holds yet. Data: GET api/document/export-columns?source=Vehicle|Company (DocumentService.GetExportColumnsAsync; the caller's companies; vehicles must be active). The UI appends the columns in utils/csv-export withDocumentColumns.

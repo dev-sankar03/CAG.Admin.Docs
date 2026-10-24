@@ -293,3 +293,7 @@ No API, payload or validation change — the same `{ code, file, expiryDate }` d
 ## Changes 2026-10-13 (night) — inactive-company popup
 
 The API answers an inactive-company refusal with **400** (the middleware derives the status from the exception type), not 409 as written above. The UI interceptor tested for 409, so the popup never appeared on QA; it now matches on the message alone.
+
+## Changes 2026-10-24 — document columns in the export (bug sheet #47)
+
+The list export has one column per document type of the module, like the rider export: the expiry date (DD/MM/YYYY), "Held (no expiry)" when the document was filed without a date, or blank when the record does not hold it (filter on blank to find missing documents). Every type gets a column, including types nobody holds yet. Data: GET api/document/export-columns?source=Vehicle|Company (DocumentService.GetExportColumnsAsync; the caller's companies; vehicles must be active). The UI appends the columns in utils/csv-export withDocumentColumns.

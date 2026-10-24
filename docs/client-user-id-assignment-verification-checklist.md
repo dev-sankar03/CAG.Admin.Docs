@@ -29,7 +29,7 @@ Work through in order — several build on the state left by the previous one.
    Expect: the CRC from step 2 ends with `endReason = ClientSuspended`, rider → FreeId, slot → Client Suspended.
 
 4. **Assign the same Full Time rider as TEMP on another FreeId slot.**
-   Rider page → Assign → Temporary. This should be **allowed** because their home slot (step 3) is suspended.
+   Rider page → Assign → Temporary. This should be **allowed** (since 2026-10-24 any rider may take a temporary ID, whatever their own slot's status).
    Expect: 200, the other slot → ID Issued for Part-Time.
 
 5. **Try assigning a Full Time rider whose home slot is *not* suspended as TEMP.** ✅ PASS (Session A, 2026-09-29)
