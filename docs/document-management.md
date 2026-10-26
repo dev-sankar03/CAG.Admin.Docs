@@ -271,3 +271,10 @@ The three upload forms (rider / vehicle / company Documents tab, the add-rider /
 ## Changes 2026-10-23 — bug sheet #60
 
 Selfies are left out of both expiring-document lists (`DocumentService.GetAllDocuments` and `GetExpiringDocumentsAsync`, `DocumentType.code <> 'RAIDER_SELFIE'`): a selfie is a photo, not a document that expires. Older selfie uploads still carry expiry rows (QA: 95, 36 of them past), which no longer show anywhere.
+
+## Changes 2026-10-26 — FTP connections and file names (branch `feature/phase2_requirements`)
+
+PROD reported slow / failing document uploads. Measured: the hosted FTP server (GoDaddy shared) takes ~8 s to connect + log in and 1–4 s per listing or download.
+
+- **Shared connections** — `FtpConnectionPool` (singleton) keeps up to `FTPSettings:MaxConnections` (default 4) connections open and reuses them; requests wait for a free one. It connects once with the known settings (`FTPSettings:EncryptionMode`, default Auto) instead of FluentFTP's `AutoConnect`, which tried several profiles for every file. Connections idle over 60 s are replaced; a dropped connection is retried once. `FileService` (base of Document, Vehicle, PartnerCompany and User services) runs every upload / download / delete through it. Before, `IAsyncFtpClient` was registered transient: a new connection per file.
+- **Safe file names** — `FileService.SafeFileName` / `SafeExtension` build every stored name: no path characters, no runs of dots, max 80 characters, lower-case extension. The FTP library rejects `..` as path traversal; PROD logged ~80 failures in two days (profile photos saved as `profile..jpg`, documents named "… - ….pdf"). Stored paths that still contain `..` read as "not found" instead of a 500.

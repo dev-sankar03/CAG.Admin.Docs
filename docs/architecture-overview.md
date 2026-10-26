@@ -425,3 +425,7 @@ Every module document ends with its own findings; this table exists only to let 
 ## Appendix — how this documentation set was produced
 
 Twenty module documents plus this overview were produced by direct inspection of the source in `CAG.Admin.API/`, `CAG.Admin.UI/`, and `CAG.Admin.DB/` — every controller, every service implementation, every repository referenced, the full MySQL DDL (`docs/database/schema.sql`), and both stored procedure bodies (transcribed in full in [Payroll Management](payroll-management.md)). Findings marked **confirmed** were verified by reading the actual method body or table definition named; findings marked **[Inferred]** are reasonable interpretations flagged as such rather than asserted as fact. No behavior in these documents was guessed or assumed from naming conventions alone without checking the implementation.
+
+## Database connection pool (2026-10-26, branch `feature/phase2_requirements`)
+
+`SqlConnectionFactory` sets two pool options unless the connection string already does: idle pooled connections are closed after 30 s (`Database:ConnectionIdleTimeoutSeconds`) — the hosted MariaDB closes idle connections at 60 s (`wait_timeout`), so reused ones were often dead and rebuilt at ~1.3 s each — and the pool is capped at 15 (`Database:MaxPoolSize`) because the database account allows 30 connections shared with other environments. The database is a GoDaddy shared server in Phoenix (US); every query costs a ~0.3 s round trip from the Gulf, see the infrastructure plan.
