@@ -233,3 +233,24 @@ Not changed (judgement calls): the red expiry chips on the Riders page stay satu
 
 - `activityModule` — shows the module's *Activity log* button (Admins only) next to the page actions. See [Activity history](activity-history.md).
 - `showAuditColumns` — adds Created By / Updated By (and the two dates, hidden) before the grid's Actions column.
+
+## UI standards clean-up (2026-10-27, UI only)
+
+A scan of the UI against the design standards in `styles/global.css` found drift; it was fixed without changing behaviour. The standards (all defined in `global.css`, mirrored for JS in `constants/design-tokens.ts`) are now:
+
+- **Type** 11 / 12 / 13 / 14 / 16 / 18 / 20 / 24 / 30 px (`text-2xs` … `text-3xl`); no arbitrary `text-[Npx]` except fixed illustrations (the vehicle plate artwork).
+- **Radius** `md` 6 (compact: icon buttons, chips, controls ≤ 32px) · `lg` 8 · `xl` 12 · `2xl` 16 · `full`. No bare `rounded`, no `rounded-3xl`; `rounded-sm` only for legend swatches and print/PDF layouts.
+- **Elevation** `shadow-sm` (small raised control) · `shadow-card` · `shadow-popover` (menus, dropdowns, tooltips, toasts) · `shadow-modal` (dialogs, side panels). Print / PDF output (receipt, payslip) keeps plain shadows.
+- **Colour** brand orange is `primary` / `primary-hover` only (`#DC552C` and `orange-*` stand-ins are gone); `bg-scrim` is the dimmer behind dialogs; `text-series-blue` matches the first chart series. Status badges take their colours from `constants/status-tones.ts` (success / info / warning / danger / neutral); task status and the quick-assign badge use it, the other badges are still to migrate (see `status-badge-design-system.md`).
+- **Grey text** helper text is `gray-500` or darker (4.8:1 on white); `gray-400` is for placeholders, disabled states and decorative icons.
+- **Small uppercase labels** use the `label-caps` utility (11px, semibold, 0.06em tracking), not hand-written class lists.
+- **Titles** page title `text-2xl font-semibold tracking-tight text-gray-900`; record/identity header `text-lg font-semibold tracking-tight text-balance`.
+- **Dialogs** no `window.confirm` / `alert` — leaving an edited Partner Company or Rider page, deleting a vehicle and a failed payslip PDF now use `AlertModal` / `UnsavedChangesModal` / a toast.
+- **Touch** `Button` and `HeaderButton` grow one step on coarse pointers (`pointer-coarse:`); actions that only appeared on hover (delete on remarks, ticket attachments, image tiles) are always visible on touch.
+- **Keyboard** clickable `div`s were given a role, `tabIndex` and Enter/Space handling (mobile nav dropdown and profile row, image upload box, multi-select options, vehicle assignment rows, the "reset password" tick box is now a real checkbox button).
+
+Known remaining: grid row-action icons are still 32px on touch (the grid row height bounds them); the 11 per-module status/type badge components still choose their own hues; a few files another change set was editing at the time were not swept (`vehicle-rider-card`, `passport-request-modal` and others).
+
+## Mobile top bar stays put (2026-10-27, UI only)
+
+On a phone the top bar (`components/sidebar/mobile-view/top-nav.tsx`) is now `position: fixed` and the pages layout (`(pages)/layout.tsx`) is exactly one screen tall (`h-dvh`, body `overflow-hidden`; `main` has `mt-16`, `h-[calc(100dvh-4rem)]`, `overscroll-contain`). Before, the bar was a normal flex child and the body was `min-h-screen` (`100vh`), which on iPhone Safari is taller than the visible area while the address bar is showing — so the whole page could scroll and the bar slid away, leaving the fixed menu detached beneath it. The open menu is also capped to the screen (`max-h-[calc(100dvh-4rem)] overflow-y-auto`) so the profile / logout row stays reachable on short phones. Desktop (`md:`) layout is unchanged.
