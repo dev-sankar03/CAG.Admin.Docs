@@ -228,7 +228,7 @@ FTP, via inherited `FileService` methods — profile images stored under `FilePa
 
 ### 3.9 Background jobs & workers
 
-None. Note the UI polls `GET api/user` on a **5-second `refetchInterval`** (`useGetAllUsers`) — not a server-side job, but a client-driven near-real-time refresh of the entire staff list while the Users page is mounted.
+None. Until 2026-10-27 the UI polled `GET api/user` every 5 s (`useGetAllUsers`) while the Users **or Cash Collection** page was open (~720 requests an hour per open page, ~1 s of database time each). The polling was removed on branch `feature/phase2_requirements`; adding or editing a user invalidates `["users", "all"]`, so the user's own changes still show at once. Users added by another admin appear on the next visit.
 
 ### 3.10 Events & messaging
 
@@ -277,7 +277,7 @@ None beyond the FTP-based generic exception log. No audit trail of who changed a
 
 ### 4.4 Performance considerations
 
-- `useGetAllUsers`'s 5-second `refetchInterval` polls the full staff roster (with the `UserCompany` LEFT JOIN) continuously while the Users page is open — for a table with under 1,000 rows today this is inexpensive, but it's a fixed polling cost with no visible business reason (staff lists change rarely) rather than event-driven or on-demand refresh.
+- (Fixed 2026-10-27, see §3.9.) `useGetAllUsers`'s 5-second `refetchInterval` polled the full staff roster (with the `UserCompany` LEFT JOIN) continuously while the Users page is open — for a table with under 1,000 rows today this is inexpensive, but it's a fixed polling cost with no visible business reason (staff lists change rarely) rather than event-driven or on-demand refresh.
 - `GetAllUsersAsync`'s join-and-collapse pattern loads the entire result set into memory before returning — consistent with the no-pagination pattern noted platform-wide (see [architecture-overview.md](architecture-overview.md)).
 
 ### 4.5 Potential improvements

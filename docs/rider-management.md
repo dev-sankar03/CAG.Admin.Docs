@@ -276,7 +276,7 @@ No module-specific configuration beyond the shared MySQL connection string.
 
 ### 3.9 Background jobs & workers
 
-No server-side scheduler — the vacation-status sync is triggered by the UI's 5-minute background poll of `POST api/rider/vacation-status/sync` (§2.3), so it only runs while someone with Rider access has the app open.
+No server-side scheduler — the vacation-status sync is triggered by the UI's 5-minute background poll of `POST api/rider/vacation-status/sync` (§2.3), so it only runs while someone with Rider access has the app open. Every open tab polls (background tabs too); the update skips riders already in the target status, so a poll that finds nothing to move writes nothing. Since 2026-10-27 the UI refetches rider data after the **first** sync only when that sync moved someone — before, every app load fetched the rider queries twice.
 
 ### 3.10 Events & messaging
 
@@ -427,3 +427,9 @@ The rider dashboard (GET rider/{id}/dashboard) and the profile photo refused a r
 
 - **Second vehicle** (bug sheet #45): Vehicle tab → *Other vehicles* card; the tab's main vehicle is the newest assignment. See [Vehicle Management](vehicle-management.md).
 - **Free ID days count** in the *Assign / Switch Client User ID* dialog (bug sheet #46). See [Client / Client User ID mapping](client-clientuserid-mapping.md).
+
+### Performance notes (2026-10-27, branch `feature/phase2_requirements`)
+
+- `GET api/rider-expense/getall/{riderId}` (expense ledger on the rider page), `GET api/rider/{riderId}/vehicles` and `DeleteRiderAsync` check access with `IRiderRepository.IsRiderAccessibleAsync` — one `SELECT EXISTS` with exactly `GetRiderByIdAsync`'s filter (active, company null or one of the caller's) — instead of loading the whole rider (two round trips, seven statements) only to throw it away.
+- The Rider list's paging helper sends its count and page-of-ids statements in one round trip (see database-access-layer.md).
+- Measured on Dev with PROD's code as the baseline: opening the rider page 1.59 s → 0.59 s, the rider list 1.59 s → 0.62 s (median of 5, see performance-audit-2026-10.md).

@@ -358,7 +358,7 @@ Login performs two sequential-ish awaited operations (permission fetch + company
 
 **Quick wins:**
 - Add `[Authorize]` (or explicit `[AllowAnonymous]` with a comment) to `AuthController.Logout`.
-- Remove the redundant second `VerifyPassword` call in `LoginAsync` (line 96 duplicates line 74).
+- ~~Remove the redundant second `VerifyPassword` call in `LoginAsync`~~ — done 2026-10-27 (branch `feature/phase2_requirements`): it repeated a BCrypt work-factor-12 check (~260 ms of CPU) on every successful login behind conditions already guaranteed true.
 - Let `AuthController` exceptions flow to `ExceptionHandlingMiddleware` instead of local `catch`.
 - ~~Add the two missing modules (`CAG_PAYROLL_HISTORY`, `CAG_PASSPORT_REQUEST`) to `ModulePermissionModel` so they're editable in the permission grid.~~ Done — the model now carries all 15 modules. What remains is seeding the missing `RolePermission` rows (e.g. Payroll History for the staff roles) so those rows stop showing "Not configured for this role".
 

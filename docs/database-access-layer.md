@@ -247,3 +247,12 @@ None. No query logging, no slow-query instrumentation, no connection-pool metric
 - The one piece of genuine concurrency-control logic in this layer is the `SELECT ... FOR UPDATE` row lock behind human-readable ID generation — correct for existing sequences, with a narrow first-of-year/first-of-entity-type race that the database's own unique constraint (not this code) ultimately prevents from corrupting data.
 - No caching, no query logging, no tests, no schema-drift detection.
 - The primary latent risk is silent-until-runtime breakage from property/column mismatches, inherent to the reflection-based design.
+
+## Round trips (2026-10-27, branch `feature/phase2_requirements`)
+
+Every statement to the hosted database costs a ~260 ms round trip, so the number of round trips per request dominates response times — see performance-audit-2026-10.md.
+
+- `SqlConnectionFactory` turns off `ConnectionReset` (it cost one extra round trip per pooled open, i.e. per query) — see architecture-overview.md for why that is safe here.
+- `PagingQueryHelper.GetPageAsync` sends the `COUNT(DISTINCT …)` and the page-of-keys statements as one batch (`QueryMultipleAsync`); same SQL, one round trip fewer for every Rider / Vehicle / Company list page.
+- `PayrollRepository.GetAllAsync` runs the company summary alongside the draft / generated / error-log queries, and the category and imported-order passes together (both only read rider ids and set different fields); the rates pass still runs after both.
+- `IRiderRepository.IsRiderAccessibleAsync` — a one-statement access check for callers that don't need the rider's data.

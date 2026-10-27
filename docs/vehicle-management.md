@@ -293,3 +293,7 @@ For a second vehicle while the first is a total loss or in an insurance claim �
 - `GET api/rider/{riderId}/vehicles` — vehicles the rider holds now, newest first (`RiderVehicleDto`, company-scoped through the rider).
 - **UI** — vehicle page → *Assigned rider* lists all active riders (those without a vehicle first; others marked "already has VH…"). Rider page → *Vehicle* tab: an **Other vehicles** card lists the older vehicles with *Open* / *Unassign*, and lets you assign another vehicle.
 - Tested on Dev (service level): second vehicle assigned, rider shows the newest once, release frees both; data restored.
+
+### `GET api/vehicle/getall` payload (2026-10-27, branch `feature/phase2_requirements`)
+
+`VehicleRepository.GetAllVehicleAsync` selects only the columns its mapping reads (vehicle, company name / code, rider id / name / mobile / company, expiry date, client user id) and no longer joins `Document`, which the mapping never read but which doubled the rows (PROD: 3,338 → 1,572 rows for 804 vehicles). Same response; the transfer from the hosted database went from ~3.3 MB to ~0.5 MB, and the endpoint from 4.9 s to 1.2 s on Dev. It feeds the vehicle pickers on the rider Vehicle tab, the company tabs and Car EMI. Which expiry date a vehicle shows when it has several (589 PROD vehicles) is still whichever row comes last — unordered, as before.
