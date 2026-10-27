@@ -433,3 +433,14 @@ Twenty module documents plus this overview were produced by direct inspection of
 ## Response compression (2026-10-27, branch `feature/phase2_requirements`)
 
 `Program.cs` adds ASP.NET Core response compression (Brotli, then gzip; level Optimal, ~9 ms per 1.4 MB) for the default text / JSON media types, HTTPS included. File downloads (xlsx, pdf, images) are not in that list and go out unchanged. A client that doesn't send `Accept-Encoding` gets plain JSON. Measured on Dev: `rider/all` 1.41 MB → 119 KB, `vehicle/getall` 721 KB → 51 KB, `salescashentry/get` 830 KB → 51 KB. `ResponseCompression:Enabled = false` switches it off. Known trade-off: compressing responses that carry a secret next to attacker-controlled text is the BREACH pattern; the API's only secret-bearing response is the login token, which reflects no request input.
+
+## Background jobs (2026-10-27, branch `feature/phase2_requirements`)
+
+The API had no hosted services until now. Two small ones, both switchable in configuration and both logging and carrying on after a failure:
+
+| Job | What | Setting |
+|---|---|---|
+| `BackgroundJobs/VacationStatusSyncJob` | Moves riders into Vacation / Vacation Overdue from approved leave — 15 s after start, then every 5 minutes. Riders it moves get `UpdatedBy = "SYSTEM"` (before, whichever user's browser ran the sync). | `BackgroundJobs:VacationStatusSyncMinutes` (default 5, 0 = off) |
+| `BackgroundJobs/FtpKeepWarmJob` | Keeps one FTP connection logged in: opens it 5 s after start, sends a NOOP every 2 minutes. | `FTPSettings:KeepWarmConnections` (default 1, 0 = off) |
+
+`FTPSettings:MaxIdleSeconds` (default 240, max 280) is how long `FtpConnectionPool` keeps an idle connection; the hosted FTP server kept idle connections for 5 minutes and had dropped them by 10 (measured).

@@ -85,12 +85,27 @@ The branch HEAD before this pass performed like main (1.65 s / 1.79 s / 2.40 s f
 - **Builds**: API builds (only existing nullability warnings); UI `tsc --noEmit` and eslint clean on the changed files.
 - **Not tested**: the UI changes in a browser (the test login could not be entered there); the payroll list as a rider-linked user; uploads larger than 200 KB; any of this on QA or PROD.
 
-## 7. Remaining bottlenecks and risks
+## 7. Second round (2026-10-27, after the first commit)
+
+| Change | Result |
+|---|---|
+| **FTP keep-warm** — `FtpKeepWarmJob` + idle limit 60 s → 240 s (server limit measured: alive at 5 min, dropped by 10) | Measured on the Dev folder (1 file, 200 KB): just after start 3.2 s kept warm vs 6.9 s not; after 6 idle minutes 3.2 s vs 11.7 s (the cold path first hits the dropped connection, then logs in again). |
+| **Download without `FileExists`** — missing file = `FtpMissingObjectException` → null as before | 1 download 2.8 s → 2.6 s; FTP suite (missing files, legacy names, traversal) passes |
+| **Vacation sync on the server** — `VacationStatusSyncJob` every 5 min; UI polls `GET rider/vacation-status/last-sync` (0 SQL, ~30 ms), falls back to the old POST on a 404 or a stale job | Same queries; idempotent; POST still works; one sync per environment instead of one per open tab |
+| **`GET rider/options`** for 7 picker screens (Leave form keeps rider/all) | Identical values for all 1,677 riders; 1.41 MB → 563 KB before compression |
+| **Stable order** for `document/all`, the expiring-documents dashboard list and vehicle expiry alerts (tie-breakers only) | Same build twice: these three are now identical between calls |
+| `DocumentTypeExpiry` index | **Withdrawn** — changed visible results (vehicle expiry dates, document order) with no measurable gain; see vehicle-management.md |
+
+Regression after the round: 79 responses vs the previous commit — 0 real differences; only the three lists above differ, in order only, and those are now stable.
+
+Data note found on the way: 20 tables keep text in latin1 (e.g. `Payroll.riderName`, `LeaveRequest` reasons, `LeaveRequestComment`). Nothing is damaged today (no "?" substitutions found on Dev or PROD), but Arabic text written there would be lost. Converting them is a schema change for a later, separate decision.
+
+## 8. Remaining bottlenecks and risks
 
 1. **Location of the database and files (largest).** Every statement still costs ~0.26 s and every FTP command ~0.27 s. Moving MariaDB next to the API (and files to local disk / object storage) takes these to < 1 ms; see the infrastructure plan.
-2. **Picker endpoints return whole tables** — `rider/all` (8 screens), `client-user-id/all`, `salescashentry/get` without a date range. Compression hides most of the transfer to the browser, not the transfer from the database. A server-side search endpoint for the pickers needs UI work.
-3. **Vacation sync runs in browsers** — every open tab, every 5 min. A small hosted service in the API would run it once.
-4. **First upload after an API restart** opens the FTP pool (~8 s). A warm-up at start-up would hide it.
-5. **Indexes** — `DocumentTypeExpiry (source, sourceId)` has none (full scan per vehicle); harmless at today's size. Schema change, not made: needs approval and a migration script.
-6. **Unordered lists** — `document/all`, `dashboard/documents/expiring`, `vehicle/expiry-alerts` return ties in random order (rows can swap between refreshes).
+2. **Picker endpoints return whole tables** — `rider/all` (7 of its 8 screens moved to `rider/options` in §7; the Leave form still needs the full rider), `client-user-id/all`, `salescashentry/get` without a date range. Compression hides most of the transfer to the browser, not the transfer from the database. A server-side search endpoint for the pickers needs UI work.
+3. ~~Vacation sync runs in browsers~~ — moved to the API in §7.
+4. ~~First upload after an API restart / after a quiet spell~~ — FTP keep-warm in §7. A 5-file upload after a restart still opens three more connections.
+5. **Indexes** — `DocumentTypeExpiry (sourceId, source)`: tried and withdrawn (§7, vehicle-management.md). Needs a rule for which expiry the vehicle list shows, and a latin1 → utf8mb4 conversion of the two columns.
+6. ~~Unordered lists~~ — tie-breakers added in §7.
 7. Risk notes for release: `ConnectionReset` off relies on the code keeping no session state — a future `SET @var` / temp table needs `Database:ConnectionReset=true` or its own cleanup. The pool cap (15) makes requests wait instead of failing when busy.
