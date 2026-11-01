@@ -284,3 +284,4 @@ Client request: pick several companies on the Mandoob Follow-up Dashboard to vie
 - **Subject optional (#1):** a blank subject is saved as the activity type's name, so every list still has a title.
 - **Updated By / Updated At columns (#5a)** on the grid and export.
 - **Filters kept (#21):** see *frontend-application-shell.md*.
+- **Rider documents (#30):** an activity about a rider has a *Rider documents* section with the rider's own documents — the same rows as the rider page's Documents tab (source `Rider`). The Mandoob picks the document type and expiry; uploading there updates the rider's expiry dates and alerts the same way (the existing document upload). Activities without a rider have no such section; nothing goes to company documents.

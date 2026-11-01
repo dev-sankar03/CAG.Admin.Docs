@@ -296,3 +296,9 @@ The rider-processing loop inside `sp_generate_company_payroll` is strictly seque
 ## Changes 2026-10-24 — newest vehicle on the payroll header (bug sheet #45)
 
 Script #36 `2026-10-24_sp_process_rider_payroll_LatestVehicle.sql` (Dev only so far): the header insert's `LEFT JOIN RiderVehicleConfig` takes the rider's newest active row only (`riderVehicleConfigId = MAX(...) WHERE status = 1`), so a rider holding two vehicles gets one header. The body is otherwise identical to the 2026-10-18 PayCover version (checked by MD5 of the live definition on Dev and QA). The draft payroll query in `PayrollRepository` uses the same rule. The script contains `DELIMITER` — run it in HeidiSQL / mysql.
+
+## Changes 2026-11-01 — riders with more than one client (Milestone 2 requirement #7)
+
+Script #46 `2026-11-01_sp_process_rider_payroll_AdditionalClients.sql`: the header insert's `LEFT JOIN ClientUserId cu ON cu.riderId = r.riderId` now also requires `cu.isAdditional = 0`, so a rider who also works for another client (see *client-clientuserid-mapping.md*) gets one header, under the main client. Body otherwise identical to #38 (MD5 of the live Dev definition checked 2026-11-01). Contains `DELIMITER`.
+
+SIM monthly charges (requirement #34) arrive as ordinary Mobile Bills ledger entries, one per month.

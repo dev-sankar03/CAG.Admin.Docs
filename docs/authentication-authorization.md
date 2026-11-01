@@ -384,3 +384,7 @@ Login performs two sequential-ish awaited operations (permission fetch + company
 ## Module CAG_CASH_COLLECTION (2026-10-24, bug sheet #53)
 
 New permission row *Cash Collection* (`ModulePermissionModel.CashCollection`, UI field `cashCollection`). Enforced server-side in `CashCollectionService`; confirming receipt additionally needs the Admin role. See [Cash Collection](cash-collection.md).
+
+## Rider passwords set by HR (Milestone 2 requirement #20, 2026-11-01)
+
+A new rider no longer gets the shared default password (first letter of the name + `Welcome3!`): `RiderService` gives the account a random password nobody knows, and HR / Admin sets each rider's own password from Helpdesk → Riders (rider page → *Set password* beside the personal email) — `PUT api/user/rider-password` (`UserService.SetRiderPasswordAsync`, HR / Admin only; 8–64 characters, a letter and a digit, no spaces; the rider must have a sign-in account in the caller's companies). It sets `User.mustChangePassword = 1` (script `2026-11-01_UserMustChangePassword.sql`, runbook #43). The sign-in token then carries the claim `MustChangePassword = "true"`; the UI (`ForcePasswordChange`) shows a dialog that can't be dismissed until the user picks a new password (`PUT api/user/updatepassword`, which clears the flag) or signs out. Passwords are still stored hashed; nobody can read one back.
