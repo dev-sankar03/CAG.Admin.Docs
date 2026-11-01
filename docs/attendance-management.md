@@ -264,3 +264,7 @@ These replace every earlier day-status rule in the 2026-10-12 section (`Attendan
 - Shifts whose employee id has no rider on the shift date are stored, left out of the report, and counted in the import result ("unmatched").
 - **UI** — the report is the Attendance page (`/HR/Attendance`) and shows no tabs. The earlier grid and its import history are no longer linked; they still open at `/HR/Attendance/Previous` and `/HR/Attendance/Logs`. **Rider Performance and Leave still read the old `Attendance` table**, which now only changes if someone imports through the old URL.
 - Shifts are attributed by Client User ID: the rider who holds the ID (per `ClientRiderConfig`) on the shift's planned start date gets the shift, whoever physically rode.
+
+## Fix 2026-10-31 — Shift Report remembers its period (Milestone 2 bug #10)
+
+After *Import Shift File* the report switches to the imported dates, but a page refresh went back to the default last 7 days, so a file for an earlier period (QA: shifts of 20–25 Sep imported on 13 Oct) looked as if nothing had been saved. The chosen From / To dates are now kept in the browser (`localStorage` key `cag.attendance.shift-report.range`, per viewer) and restored after a refresh. The default is still the last 7 days.

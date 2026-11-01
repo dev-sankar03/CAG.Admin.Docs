@@ -439,3 +439,13 @@ The rider dashboard (GET rider/{id}/dashboard) and the profile photo refused a r
 `RiderService.GetRiderOptionsAsync` → `RiderRepository.GetRiderOptionsAsync`: the same riders as `GET api/rider/all` (same joins, filter, company scope and rider-user restriction) with only the 13 fields the dropdowns read — riderId, riderName, mobileNumber, civilId, status, companyId / Code / Name, vehicleId / Number, clientUserId, clientId, clientName (`RiderOptionModel` / UI `RiderOption`). `companyId` follows rider/all's rule (the joined, active company's id, so null when that company is inactive). Checked on Dev: identical values for all 1,677 riders; 1.41 MB → 563 KB before compression.
 
 UI: `useGetRiderOptions` (query key `["rider", "all", "options"]`, so every `["rider", "all"]` invalidation refreshes it) feeds the pickers on Vehicle details and its rider card, Cash Collection, Car EMI, Sales Cash, the passport request modal and the quick expense entry. The Leave request form keeps `useGetAllRiders` (full rider/all): its Rider tab shows the rider's dues and documents.
+
+### Overview document renewals follow the rider's documents (Milestone 2 bug #28 / bug sheet #15, 2026-10-31)
+
+The rider Overview's Passport / Driving licence / Work permit / Food handlers rows (`buildRiderRenewals`) and the rider dashboard's *Alerts & Compliance* card used the Rider record's date columns, which HR onboarding fills. A rider with no work permit uploaded still showed "Work permit — Expired" from an onboarding date (QA: 204 such rider/document pairs, e.g. RD260144), while the Documents tab showed the real state. Both now read the rider's uploaded documents (document types 23 / 30 / 27 / 31 — `RIDER_DOCUMENT_TYPE`, the same ids as the API's `DocumentTypeExpiryService`):
+
+- no document of the type → **Not uploaded** (grey, no alert);
+- a document without an expiry → **On file** (no alert);
+- otherwise the document's expiry (Expired / Expiring / Valid as before).
+
+"Not granted" (work permit / food handlers not held) still takes precedence. The client contract row is unchanged. The dashboard's company-wide compliance lists still read the Rider columns, which the document-expiry sync keeps in step for new uploads.
