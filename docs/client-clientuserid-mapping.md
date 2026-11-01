@@ -452,3 +452,7 @@ Branch `feature/phase2_requirements` (API + UI), 2026-10-24 — not on develop /
 - **Free IDs list** (`GET api/client-user-id/all?free=true` → `GetAllFreeClientUserIdsAsync`, used by the HR Workflow's Client User ID step) returns the same two fields plus `statusId`, and is ordered **LIFO** (most recently freed first, then id).
 - **Pickers.** The HR Workflow (onboarding) Client User ID picker and the Rider → Employment *Assign / Switch* dialog now show the count ("freed today" / "12d") next to each ID, as the Rider list's quick-assign dialog already did (`utils/days-in-status.ts`, shared by all three).
 - Dev check: 158 Free IDs all have a count; every status (Active, Free, Temp, Suspended, Churn, Clearance) has it.
+
+## Remove client contract expiry from alerts (Milestone 2 requirement #2, 2026-11-01)
+
+A Client User ID in Clearance Completed / CURN can't have its contract renewed. *Remove from alerts* in the expiry pop-up now works for client contracts too: `PUT api/dashboard/compliance-expiry` with sourceType `Client` and no date calls `RemoveContractAlertAsync`, which records `ClientUserId.contractAlertRemovedForExpiry` (= the current `contractExpiry`), `contractAlertRemovedAt` and `contractAlertRemovedBy` (script `2026-11-01_ClientUserIdContractAlertRemoved.sql`, runbook #40). The contract date and the client status are **not** changed. `GetClientContractExpiry` skips a row while `contractExpiry` still equals the removed date, so saving any new contract date (edit, import, HR workflow, the pop-up) brings the alert back by itself.

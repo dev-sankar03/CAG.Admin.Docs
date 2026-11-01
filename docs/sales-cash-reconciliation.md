@@ -279,3 +279,7 @@ Since 2026-10-17 the import writes one SalesCashDetails row per rider per day co
 ## Changes 2026-10-26 — cash entry company for riders without one (branch `feature/phase2_requirements`)
 
 The Sales Cash "add entry" form fills the company from the selected rider. Riders without a company (409 active on PROD, mostly part-timers) sent `"undefined"`, and the save failed with a 500 on `fk_salescashentry_company` (4 times on PROD on 26-10; no entry for such a rider has ever been saved). `SalesCashService.ResolveEntryCompanyAsync` (add and edit) now uses the requested company when it exists, else the rider's company, else the company of the Client User ID's permanent holder (`SalesCashEntryRepository.ResolveCompanyIdAsync`). When none has a company the API answers 400: "Rider X has no company, and neither does the holder of Client User ID Y. Set the rider's company first."
+
+## Export: Created By / Updated By (Milestone 2 requirement #9, 2026-11-01)
+
+The *SalesCashEntries* sheet of the export has two more columns, **Created By** and **Updated By** (user names from the entry query). The export already offers a single day ("day") as well as a month (Milestone 2 #11 K).

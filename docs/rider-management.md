@@ -449,3 +449,13 @@ The rider Overview's Passport / Driving licence / Work permit / Food handlers ro
 - otherwise the document's expiry (Expired / Expiring / Valid as before).
 
 "Not granted" (work permit / food handlers not held) still takes precedence. The client contract row is unchanged. The dashboard's company-wide compliance lists still read the Rider columns, which the document-expiry sync keeps in step for new uploads.
+
+## Milestone 2 changes (2026-11-01)
+
+- **Add Rider — profession (#4):** free text (max 200, trimmed) instead of Car / Bike. The column was always text and the rider page already edited it freely; the export already has it.
+- **Iznamal salary (#37):** no spinner arrows and no change on mouse-wheel (`NumberInput hideSpinner`).
+- **Joining date (#26):** shown on the rider Overview — the same date the leave request's rider panel shows (work permit issued date, set on the Akhama task). Note: the rider dashboard's profile card labels the client assignment start date "Joining date"; the two are different dates.
+- **Export (#25, #36):** appended columns *Order Type* and *Sub Category* (the rider's open `RiderOrderCategoryHistory` row), then one column per inventory property held — *Property: <name> (<code>)* with the quantity, blank when none (`GetRiderPropertyHoldingsAsync`). Existing column positions are unchanged.
+- **Bulk expense import (#18):** Riders page → *Import Expenses* → `POST api/rider-expense/import/bulk`. Either the sheet has a **Rider ID** column (each row is booked to its rider; unknown / out-of-scope riders fail that row), or every row is booked to each rider chosen in the dialog (Select All = every rider; an unknown rider refuses the whole import). Same columns and rules as the single-rider import. Limits: 3,000 riders, 20,000 entries. `BulkAddAsync` now inserts 500 rows per statement in one transaction (also used by the single-rider import).
+- **Client contract alert (#2):** see *client-clientuserid-mapping.md*; the Overview shows the contract as *Removed from alerts*.
+- **Given-up onboarding entries (#31):** the Riders list and the dashboard's Onboarding / Visa Process / Local Transfer counts leave out riders still in statuses 1–3 whose HR workflow is marked Inactive or has a Failed (4) / Rejected (5) task (`RiderListQueryBuilder.AbandonedOnboardingExcluded`). They remain in HR Workflow. The *Export All Data* sheet still lists them.

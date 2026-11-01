@@ -308,3 +308,7 @@ None beyond the FTP-based generic exception log. No audit trail of who changed a
 ## Changes 2026-10-12 (bug sheet 13–33)
 
 - **Duplicate email is checked before the write** (bug sheet #22): `UserService.RegisterAsync` answers 409 *"The email … is already used by another user"* on create and on update, instead of failing on the `User.email` unique key with a generic 500. Deleting an onboarding rider now also deletes that rider's `User` row (see [HR Workflow](hr-workflow-onboarding.md)).
+
+## Active / Inactive tabs (Milestone 2 requirement #6, 2026-11-01)
+
+The Users page lists active and inactive users on separate tabs (*Active* first, with counts); the Status filter is gone because the tab does that job.

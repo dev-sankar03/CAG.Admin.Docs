@@ -193,3 +193,10 @@ Now (`(details)/Passport-Request/[ticketId]/page.tsx`, `getAllowedStatuses`) any
 - QA levels when this was written: Admin Edit, HR Edit, **Supervisor View** (Supervisors lose the post-approval buttons unless given Edit), Rider Edit (riders raise requests; the buttons stay hidden for them), others none.
 - "Helpdesk" is not a role in the system (only a module) — give Edit to whichever role those users have, or create a Helpdesk role.
 - The API (`PUT api/passport-request/{ticketId}`) still checks neither role nor module permission; the rule is in the UI only.
+
+## Milestone 2 changes (2026-11-01)
+
+- **Grid / export (#3):** Civil ID, Passport No. and Company code columns. The list queries join `Company` through the rider (`civilId`, `passportNumber`, `companyCode` on `PassportRequestDto`).
+- **Details only for Others (#19):** the *Details* box is required only when the type is *Others*; left blank, no empty comment is stored.
+- **Riders still being onboarded** (Onboarding / Visa Process / Local Transfer) can now be picked for a request (#19).
+- **Cancel and delete (#23 / #29):** new status `Cancelled` (script `2026-11-01_PassportRequestStatus_Cancelled.sql`, runbook #41). *Cancel request* and *Delete* are offered — and accepted by the API — only while the request is **Requested, Approved or Collected by rider**; Passport received / Submitted / Closed / Rejected are untouched. Cancelling sets `closedDate` and adds the usual "Status changed …" comment; the request moves to the *Cancelled* tab, and its progress shows the stages it reached, then Cancelled. `DELETE api/passport-request/{ticketId}` now refuses other stages, and a rider can delete only their own request while it is still *Requested*. Attachments of a deleted request are not removed from storage.

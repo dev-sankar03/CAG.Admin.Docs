@@ -259,3 +259,7 @@ The shared review (`components/modals/rider/review-submit-form.tsx`, used by Add
 ## Changes 2026-10-24 — Free ID days count in the Client User ID step (bug sheet #46)
 
 Branch `feature/phase2_requirements` (API + UI), 2026-10-24 — not on develop / QA yet. The Client User ID step's list of free IDs is LIFO (most recently freed first) and each option shows how long the ID has been free ("freed today" / "12d"); see [Client / Client User ID mapping](client-clientuserid-mapping.md).
+
+## Akhama task: Passport Received (Milestone 2 requirement #19, 2026-11-01)
+
+Tasks 6 and 11 (Akhama) have a **Passport Received** Yes / No field. Like the task's other fields it is stored in the step's details JSON (`taskDetailsJson`), so there is no schema change; it is optional and does not block completing the task.

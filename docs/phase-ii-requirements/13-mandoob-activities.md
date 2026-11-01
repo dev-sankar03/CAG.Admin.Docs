@@ -277,3 +277,10 @@ Client request: pick several companies on the Mandoob Follow-up Dashboard to vie
 - Summary cards, Follow-ups due, Overdue, Upcoming due and Activities by type cover the picked companies together.
 - New **Company comparison** card, shown whenever more than one company is in view (all, or several picked): one row per company with Overdue, Due Today, Follow-ups due, Upcoming (next 14 days), Open, Pending, Completed and Total — the same rules as the cards and panels — sorted by what needs chasing first (Overdue, then Due Today, then Follow-ups due).
 - The cards' and panels' links still open the full activity list without the company filter (unchanged).
+
+## Milestone 2 changes (2026-11-01)
+
+- **Rider details on pick (#1):** choosing a rider shows their Rider ID, company code, Civil ID, vehicle code and number and client ID under the field (live values from the rider), and fills the rider's client when no client is chosen.
+- **Subject optional (#1):** a blank subject is saved as the activity type's name, so every list still has a title.
+- **Updated By / Updated At columns (#5a)** on the grid and export.
+- **Filters kept (#21):** see *frontend-application-shell.md*.

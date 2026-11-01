@@ -303,3 +303,7 @@ For a second vehicle while the first is a total loss or in an insurance claim �
 ## "Add photos" starts the upload (2026-10-27, UI only)
 
 On the vehicle details page the empty photo tile in the header and the empty Photos card on the Overview tab only switched to the Photos tab — so on a vehicle with no photos they looked dead (and did nothing at all when the Photos tab was already open). Both now open the file picker straight from the click (`vehicle-header.tsx` / `vehicle-details-tab.tsx` call the page's `openPhotoPicker`, which owns one hidden file input in `(details)/Vehicle/[vehicleId]/index.tsx`); the chosen files go to `VehicleImageTab` (`incomingFiles`), which validates them (PNG / JPG / JPEG, ≤ 10 MB) and opens the same "what does each photo show?" dialog as the Photos tab's own button. Users without edit access still see "No photos" and the tile just shows the Photos tab. No API change.
+
+## EMI closed → Employee Owned (Milestone 2 requirement #32, 2026-11-01)
+
+`PUT api/car-emi/close/{id}` (`CloseCarEmiAsync`) now also sets the vehicle's `ownerType` to `EmployeeOwned` when it was `Installment` or not set, in the same transaction as closing the EMI. Company / Rental vehicles keep their owner type. EMIs closed before this change are not back-filled.

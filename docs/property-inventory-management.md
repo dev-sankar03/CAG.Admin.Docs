@@ -233,3 +233,9 @@ Nothing notable at current volumes (`Property` 8 rows, `SimCard` 0 rows per [arc
 ## Fix 2026-10-31 — property code edits saved (Milestone 2 bug #27)
 
 `PUT api/property` (`PropertyService.UpdatePropertyAsync`) now saves `propertyCode`. `PropertyUpdateRequest` had no such field, so the code the Inventory edit form sends was dropped and the update still answered success. A blank or missing code keeps the current one (the same rule as name and description); the value is trimmed. No uniqueness rule, the same as when adding a property.
+
+## SIM card contract details (Milestone 2 requirement #33, 2026-11-01)
+
+SIM cards have optional **Contract Number** (≤ 50), **Contract Company** (a partner company, picked by code; `contractCompanyId`), **Contract Period (months)** (1–120), **Start Date** and **End Date** (script `2026-11-01_SimCardContract.sql`, runbook #42). The add / edit form fills the end date from start + period (the day before the period ends) until it is edited; the API refuses an end date before the start. The list returns `contractCompanyCode` and the grid / export show all five. The edit form now sends every field — the generic update writes every column, so a SIM's assigned rider used to be cleared by an edit.
+
+**Inventory audit columns (#25):** Created By / Updated By are on the Inventory grid since the 2026-10-27 release (bug sheet #42).

@@ -252,3 +252,10 @@ Nothing notable at current volumes (145 `LeaveRequest` rows per [architecture-ov
 ## Changes 2026-10-13 (night) — bug sheet #8
 
 `LeaveRequestService.UpdateAsync` now takes the rider from the saved request instead of the request body. When the body carried no usable rider id, the immediate status recompute was skipped and the rider only moved to Vacation at the next 5-minute background sync (seen on QA: approved 14:45:36, rider updated 14:49:36).
+
+## Milestone 2 changes (2026-11-01)
+
+- **Attachments (#17):** the comments panel of a leave request has an *Attachments* list — upload (PDF / JPG / PNG), open, delete — on the generic document endpoints with source `LeaveRequest`, sourceId = leave request id, document type 35 (*Others*). Storage folder key `FilePath:LeaveRequestFiles` = `LeaveRequest` (appsettings.json). Available once the request exists; staff with edit permission can add files.
+- **Onboarding riders (#19):** riders still in Onboarding / Visa Process / Local Transfer can be picked for a leave request. Approved leave does **not** move them to Vacation: the vacation sync (`GetAllRidersInVacationAsync`) and `RecomputeRiderVacationStatusAsync` skip statuses 1–3, because their status belongs to the HR workflow.
+- **Cancel an approved leave (#24):** staff see *Cancel leave* (with a confirm step) next to *Close vacation*. It saves status `Cancelled` through the existing update path, which returns the rider from Vacation to Active. Cancelled leave is not part of the leave history (that panel counts approved leave only).
+- **Delete (#24):** *Delete request* for staff on leave that is not Approved or Closed. `DELETE api/leaverequest/delete/{id}` was broken (it passed a bare id to the generic delete, and `LeaveRequestComment` blocks deletes with ON DELETE RESTRICT); it now checks staff + company scope + status and deletes the request and its comments in one transaction (`DeleteWithCommentsAsync`).
