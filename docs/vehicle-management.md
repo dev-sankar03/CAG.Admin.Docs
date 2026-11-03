@@ -307,3 +307,5 @@ On the vehicle details page the empty photo tile in the header and the empty Pho
 ## EMI closed → Employee Owned (Milestone 2 requirement #32, 2026-11-01)
 
 `PUT api/car-emi/close/{id}` (`CloseCarEmiAsync`) now also sets the vehicle's `ownerType` to `EmployeeOwned` when it was `Installment` or not set, in the same transaction as closing the EMI. Company / Rental vehicles keep their owner type. EMIs closed before this change are not back-filled.
+
+**Vehicle export audit columns (Milestone 2 #12, 2026-11-03):** the Vehicles export builds its own column list (full dataset + document columns), so it now adds Created By, Created At, Updated By and Updated At itself — all four, including the two dates the grid hides by default.
