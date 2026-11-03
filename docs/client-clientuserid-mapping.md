@@ -469,3 +469,5 @@ A rider keeps **one main assignment** (`ClientRiderConfig.isActive = 1`, unchang
 - Client history lists additional assignments as "Additional client". The Client User ID page has a **Client** filter (requirement #7.2).
 
 **Days in status on the rider page (bug tracker #46 / Milestone 2 #14, 2026-11-03):** the rider details return `daysInStatus` for the rider's current Client User ID (`ClientUserIdModel.DaysInStatus`, `[NotMapped]`), shown beside the Client rider status badge. The pickers (Onboarding last step, rider page assign / switch, Permanent and Temporary) already list IDs newest-released first with the count.
+
+**Marked and searchable (Milestone 2 #7, reopened 2026-11-03):** the Riders list returns `additionalClientUserIds` (open additional assignments, comma-separated) and its Client User ID cell shows a "+N" marker with the IDs on hover; the Riders search also matches an additional Client User ID. On the Client User ID page, Current Type reads "Additional" for such IDs (`ClientUserIdResponse.IsAdditional`), so a Rider ID search there shows the main and the additional IDs side by side.
