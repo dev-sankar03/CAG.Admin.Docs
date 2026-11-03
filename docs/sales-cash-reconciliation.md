@@ -283,3 +283,5 @@ The Sales Cash "add entry" form fills the company from the selected rider. Rider
 ## Export: Created By / Updated By (Milestone 2 requirement #9, 2026-11-01)
 
 The *SalesCashEntries* sheet of the export has two more columns, **Created By** and **Updated By** (user names from the entry query). The export already offers a single day ("day") as well as a month (Milestone 2 #11 K).
+
+**Day-wise figures were zero after import (Milestone 2 #11, 2026-11-03):** the client names its sheet after the company and the day it is "as on" (e.g. `PendingDues_(WSLL)_ason_01-11-2026.xlsx`) and fills day columns only up to that day. The import dialog defaulted Entry Date to today, so a sheet uploaded later wrote that day's rows with zero day sales and collection. The dialog now takes Company and Entry Date from the file name (still editable), and the API refuses an upload whose Entry Date has no sales and no collection for any rider (`NN-S` / `NN-C` empty), naming the columns. Checked on the WSLL sheet: 1 Nov imports 25 rows with day sales 286.89 = the sheet's TOTAL; 3 Nov is refused.
