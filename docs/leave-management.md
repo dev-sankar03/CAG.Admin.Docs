@@ -259,3 +259,12 @@ Nothing notable at current volumes (145 `LeaveRequest` rows per [architecture-ov
 - **Onboarding riders (#19):** riders still in Onboarding / Visa Process / Local Transfer can be picked for a leave request. Approved leave does **not** move them to Vacation: the vacation sync (`GetAllRidersInVacationAsync`) and `RecomputeRiderVacationStatusAsync` skip statuses 1–3, because their status belongs to the HR workflow.
 - **Cancel an approved leave (#24):** staff see *Cancel leave* (with a confirm step) next to *Close vacation*. It saves status `Cancelled` through the existing update path, which returns the rider from Vacation to Active. Cancelled leave is not part of the leave history (that panel counts approved leave only).
 - **Delete (#24):** *Delete request* for staff on leave that is not Approved or Closed. `DELETE api/leaverequest/delete/{id}` was broken (it passed a bare id to the generic delete, and `LeaveRequestComment` blocks deletes with ON DELETE RESTRICT); it now checks staff + company scope + status and deletes the request and its comments in one transaction (`DeleteWithCommentsAsync`).
+
+## Not returned (Milestone 2 #24, reopened 2026-11-04)
+
+Some riders never come back from vacation. Staff now see **Not returned** next to *Close vacation* on an approved request; it asks for the reason (required, max 1000 characters). `PUT api/leaverequest/{id}/not-returned` (`LeaveRequestService.MarkNotReturnedAsync`) sets status **`NotReturned`** and saves the reason as a comment `Not returned: …`.
+
+- Unlike *Close vacation*, the rider is **not** moved back to Active — HR follows up and sets the status (e.g. Akhama Cancelled).
+- `NotReturned` is finished history like `Closed`: it is no open vacation, does not block a new request, cannot be deleted, and the shift report reads it as leave (`AttendanceShiftRepository`).
+- Grid / modal pill "Not returned" (orange); Status filter option *Not Returned*; the grid export carries the status as shown.
+- DB: `LeaveRequest.status` ENUM gains `NotReturned` — script #48 `2026-11-04_LeaveRequestNotReturnedStatus.sql` (Dev + QA 2026-11-04, PROD pending).
